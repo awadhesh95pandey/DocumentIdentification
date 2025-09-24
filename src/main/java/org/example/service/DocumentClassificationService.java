@@ -100,8 +100,8 @@ public class DocumentClassificationService {
      */
     public ClassificationResult classifyTextDocument(String content, String fileName) {
         if (!isClassificationAvailable()) {
-            logger.info("OpenAI not available, falling back to filename-based classification for: {}", fileName);
-            return classifyByFilename(fileName);
+            logger.warn("OpenAI classification not available for: {}", fileName);
+            return ClassificationResult.failure("OpenAI service not configured or unavailable", 0);
         }
 
         long startTime = System.currentTimeMillis();
@@ -139,8 +139,8 @@ public class DocumentClassificationService {
      */
     public ClassificationResult classifyImageDocument(File imageFile) {
         if (!isClassificationAvailable()) {
-            logger.info("OpenAI not available, falling back to filename-based classification for image: {}", imageFile.getName());
-            return classifyByFilename(imageFile.getName());
+            logger.warn("OpenAI classification not available for image: {}", imageFile.getName());
+            return ClassificationResult.failure("OpenAI service not configured or unavailable", 0);
         }
 
         long startTime = System.currentTimeMillis();
