@@ -36,11 +36,42 @@ public class OpenAIConfig {
      */
     @Bean
     public OpenAiService openAiService() {
-        if (!classificationEnabled || apiKey == null || apiKey.equals("your-openai-api-key-here")) {
-            return null; // Classification will be disabled
+        System.out.println("OpenAI Configuration Check:");
+        System.out.println("- Classification Enabled: " + classificationEnabled);
+        System.out.println("- API Key Present: " + (apiKey != null && !apiKey.trim().isEmpty()));
+        System.out.println("- API Key Length: " + (apiKey != null ? apiKey.length() : 0));
+        System.out.println("- API Key Starts with 'sk-': " + (apiKey != null && apiKey.startsWith("sk-")));
+        
+        if (!classificationEnabled) {
+            System.out.println("OpenAI Classification is disabled in configuration");
+            return null;
         }
         
-        return new OpenAiService(apiKey, Duration.ofSeconds(timeoutSeconds));
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            System.out.println("OpenAI API key is null or empty");
+            return null;
+        }
+        
+        if (apiKey.equals("your-openai-api-key-here") || apiKey.equals("your-actual-openai-api-key-here")) {
+            System.out.println("OpenAI API key is still set to placeholder value");
+            return null;
+        }
+        
+        if (!apiKey.startsWith("sk-")) {
+            System.out.println("OpenAI API key does not start with 'sk-' - invalid format");
+            return null;
+        }
+        
+        try {
+            System.out.println("Creating OpenAI service with timeout: " + timeoutSeconds + " seconds");
+            OpenAiService service = new OpenAiService(apiKey, Duration.ofSeconds(timeoutSeconds));
+            System.out.println("OpenAI service created successfully!");
+            return service;
+        } catch (Exception e) {
+            System.out.println("Failed to create OpenAI service: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
     }
 
     // Getters and Setters
