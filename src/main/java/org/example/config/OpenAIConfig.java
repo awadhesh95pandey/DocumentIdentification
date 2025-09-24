@@ -52,8 +52,8 @@ public class OpenAIConfig {
             return null;
         }
         
-        if (apiKey.equals("your-openai-api-key-here") || apiKey.equals("your-actual-openai-api-key-here")) {
-            System.out.println("OpenAI API key is still set to placeholder value");
+        if (apiKey.equals("your-openai-api-key-here") || apiKey.equals("your-actual-openai-api-key-here") || apiKey.equals("not-set")) {
+            System.out.println("OpenAI API key is still set to placeholder value: " + apiKey);
             return null;
         }
         

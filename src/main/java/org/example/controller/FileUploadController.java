@@ -195,6 +195,33 @@ public class FileUploadController {
     }
 
     /**
+     * Debug endpoint for OpenAI configuration.
+     *
+     * @return Detailed OpenAI configuration status
+     */
+    @GetMapping("/debug/openai")
+    public ResponseEntity<Map<String, Object>> debugOpenAI() {
+        Map<String, Object> debug = new HashMap<>();
+        
+        // Environment variable check
+        String apiKey = System.getenv("OPENAI_API_KEY");
+        debug.put("envVarSet", apiKey != null && !apiKey.trim().isEmpty());
+        debug.put("envVarLength", apiKey != null ? apiKey.length() : 0);
+        debug.put("envVarStartsWithSk", apiKey != null && apiKey.startsWith("sk-"));
+        
+        // Classification service status
+        if (classificationService != null) {
+            debug.put("classificationServiceExists", true);
+            debug.put("classificationStatus", classificationService.getClassificationStatus());
+        } else {
+            debug.put("classificationServiceExists", false);
+            debug.put("classificationStatus", "Service not injected");
+        }
+        
+        return ResponseEntity.ok(debug);
+    }
+
+    /**
      * Delete a job and its associated files.
      *
      * @param jobId The job identifier
