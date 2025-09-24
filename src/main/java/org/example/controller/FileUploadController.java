@@ -264,9 +264,12 @@ public class FileUploadController {
                 
                 // Add documents to result
                 for (DocumentInfo doc : documents) {
-                    if (doc.getContent() != null && !doc.getContent().trim().isEmpty()) {
-                        extractionResult.addDocument(doc);
-                    } else {
+                    // Always add the document, even if content is empty (especially for images)
+                    extractionResult.addDocument(doc);
+                    
+                    // Add warning only for non-image files with no content
+                    if ((doc.getContent() == null || doc.getContent().trim().isEmpty()) && 
+                        !isImageFile(doc.getFileName())) {
                         extractionResult.addWarning("No content extracted from: " + doc.getFileName());
                     }
                 }
@@ -295,6 +298,26 @@ public class FileUploadController {
                 cleanupUploadedFile(jobId);
             }
         });
+    }
+
+    /**
+     * Check if a file is an image based on its extension.
+     */
+    private boolean isImageFile(String fileName) {
+        if (fileName == null) return false;
+        String extension = getFileExtension(fileName);
+        return extension.matches("jpg|jpeg|png|gif|bmp|tiff|tif|webp");
+    }
+
+    /**
+     * Get file extension from filename.
+     */
+    private String getFileExtension(String fileName) {
+        int lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex > 0 && lastDotIndex < fileName.length() - 1) {
+            return fileName.substring(lastDotIndex + 1).toLowerCase();
+        }
+        return "";
     }
 
     private void cleanupUploadedFile(String jobId) {
