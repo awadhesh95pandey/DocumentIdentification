@@ -6,9 +6,11 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
+import org.example.model.ClassificationResult;
 import org.example.model.DocumentInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
@@ -37,6 +39,12 @@ public class DocumentExtractionService {
     private final Tika tika;
     private final AutoDetectParser parser;
     private Set<String> allowedExtensions;
+
+    @Autowired(required = false)
+    private DocumentClassificationService classificationService;
+
+    @Autowired(required = false)
+    private ImageProcessingService imageProcessingService;
 
     public DocumentExtractionService() {
         this.tika = new Tika();
@@ -73,6 +81,9 @@ public class DocumentExtractionService {
 
             // Extract content and metadata
             extractContentAndMetadata(file, docInfo);
+
+            // Classify document using AI
+            classifyDocument(file, docInfo);
 
             logger.debug("Successfully extracted document: {} (content length: {})", 
                 file.getName(), docInfo.getContent() != null ? docInfo.getContent().length() : 0);
@@ -244,5 +255,50 @@ public class DocumentExtractionService {
         stats.put("averageContentLength", Math.round(avgContentLength));
         
         return stats;
+    }
+
+    /**
+     * Classifies a document using AI-powered classification service.
+     *
+     * @param file The document file to classify
+     * @param docInfo The DocumentInfo object to update with classification results
+     */
+    private void classifyDocument(File file, DocumentInfo docInfo) {
+        if (classificationService == null) {
+            logger.debug("Classification service not available, skipping classification for: {}", file.getName());
+            docInfo.setClassification(ClassificationResult.disabled());
+            return;
+        }
+
+        try {
+            ClassificationResult result;
+
+            // Check if it's an image file
+            if (imageProcessingService != null && imageProcessingService.isImageFile(file.getName())) {
+                logger.debug("Classifying image document: {}", file.getName());
+                result = classificationService.classifyImageDocument(file);
+            } else if (docInfo.getContent() != null && !docInfo.getContent().trim().isEmpty()) {
+                // Classify based on text content
+                logger.debug("Classifying text document: {}", file.getName());
+                result = classificationService.classifyTextDocument(docInfo.getContent(), file.getName());
+            } else {
+                // Fallback to filename-based classification
+                logger.debug("Using filename-based classification for: {}", file.getName());
+                result = classificationService.classifyByFilename(file.getName());
+            }
+
+            docInfo.setClassification(result);
+            
+            if (result.isSuccessful()) {
+                logger.info("Document classified: {} -> {} (confidence: {:.2f})", 
+                           file.getName(), result.getDocumentType(), result.getConfidence());
+            } else {
+                logger.warn("Classification failed for {}: {}", file.getName(), result.getErrorMessage());
+            }
+
+        } catch (Exception e) {
+            logger.error("Error during document classification for {}: {}", file.getName(), e.getMessage());
+            docInfo.setClassification(ClassificationResult.failure("Classification error: " + e.getMessage(), 0));
+        }
     }
 }

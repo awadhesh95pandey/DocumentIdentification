@@ -3,6 +3,7 @@ package org.example.controller;
 import org.example.model.DocumentInfo;
 import org.example.model.ExtractionResult;
 import org.example.model.FileUploadResponse;
+import org.example.service.DocumentClassificationService;
 import org.example.service.DocumentExtractionService;
 import org.example.service.ZipExtractionService;
 import org.slf4j.Logger;
@@ -36,6 +37,9 @@ public class FileUploadController {
 
     @Autowired
     private ZipExtractionService zipExtractionService;
+
+    @Autowired(required = false)
+    private DocumentClassificationService classificationService;
 
     @Autowired
     private DocumentExtractionService documentExtractionService;
@@ -162,8 +166,17 @@ public class FileUploadController {
         info.put("supportedExtensions", documentExtractionService.getSupportedExtensions());
         info.put("maxFileSize", "100MB");
         info.put("maxZipEntries", 1000);
-        info.put("version", "1.0.0");
-        info.put("description", "Document Extraction Service - Upload ZIP files to extract document content");
+        info.put("version", "1.1.0");
+        info.put("description", "Document Extraction Service with AI Classification - Upload ZIP files to extract and classify documents");
+        
+        // Add classification service status
+        if (classificationService != null) {
+            info.put("classificationStatus", classificationService.getClassificationStatus());
+            info.put("aiClassificationEnabled", true);
+        } else {
+            info.put("classificationStatus", "Classification service not available");
+            info.put("aiClassificationEnabled", false);
+        }
         
         return ResponseEntity.ok(info);
     }

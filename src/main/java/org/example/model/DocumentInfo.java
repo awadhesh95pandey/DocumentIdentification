@@ -18,6 +18,9 @@ public class DocumentInfo {
     private int pageCount;
     private boolean hasImages;
     private boolean hasLinks;
+    
+    // Classification information
+    private ClassificationResult classification;
 
     // Constructors
     public DocumentInfo() {}
@@ -108,6 +111,14 @@ public class DocumentInfo {
 
     public void setHasLinks(boolean hasLinks) {
         this.hasLinks = hasLinks;
+    }
+
+    public ClassificationResult getClassification() {
+        return classification;
+    }
+
+    public void setClassification(ClassificationResult classification) {
+        this.classification = classification;
     }
 
     /**

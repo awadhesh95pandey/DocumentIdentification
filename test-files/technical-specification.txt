@@ -1,0 +1,123 @@
+TECHNICAL SPECIFICATION DOCUMENT
+================================
+Document Extraction Service API v1.0
+
+Document Metadata
+-----------------
+Title: Technical Specification Document
+Version: 1.0
+Author: Technical Team
+Created: 2024-01-15
+Last Modified: 2024-01-20
+Classification: Internal Use
+
+System Overview
+---------------
+The Document Extraction Service is a Spring Boot application that provides
+REST APIs for uploading ZIP files and extracting content from various
+document formats using Apache Tika.
+
+Architecture Components
+----------------------
+1. Controller Layer
+   - FileUploadController: Handles HTTP requests
+   - REST endpoints for file operations
+   - Request validation and error handling
+
+2. Service Layer
+   - ZipExtractionService: Processes ZIP files
+   - DocumentExtractionService: Extracts document content
+   - Security validations and file processing
+
+3. Model Layer
+   - FileUploadResponse: API response model
+   - DocumentInfo: Document metadata model
+   - ExtractionResult: Processing results model
+
+Technical Requirements
+---------------------
+- Java 21 or higher
+- Maven 3.6 or higher
+- Spring Boot 3.2.0
+- Apache Tika 2.9.1
+- Apache Commons libraries
+
+Supported File Formats
+----------------------
+- PDF documents (.pdf)
+- Microsoft Word (.doc, .docx)
+- Microsoft Excel (.xls, .xlsx)
+- Microsoft PowerPoint (.ppt, .pptx)
+- OpenDocument formats (.odt, .ods, .odp)
+- Text files (.txt, .rtf)
+
+API Endpoints
+-------------
+POST /api/upload
+- Purpose: Upload ZIP file for processing
+- Parameters: MultipartFile (ZIP format)
+- Response: FileUploadResponse with job ID
+
+GET /api/status/{jobId}
+- Purpose: Check processing status
+- Parameters: Job ID (UUID)
+- Response: Current processing status
+
+GET /api/results/{jobId}
+- Purpose: Retrieve extraction results
+- Parameters: Job ID (UUID)
+- Response: ExtractionResult with documents
+
+Security Features
+-----------------
+- ZIP bomb protection
+- Path traversal prevention
+- File type validation
+- Size limit enforcement
+- Input sanitization
+
+Performance Specifications
+--------------------------
+- Maximum file size: 100MB
+- Maximum ZIP entries: 1000
+- Processing timeout: 5 minutes
+- Concurrent requests: 50
+- Memory usage: < 2GB
+
+Configuration Parameters
+-----------------------
+app.upload.dir=./uploads
+app.temp.dir=./temp
+app.max-zip-entries=1000
+app.max-zip-size=100MB
+app.allowed-file-types=zip,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,rtf,odt,ods,odp
+
+Error Handling
+--------------
+- HTTP 400: Bad Request (invalid file, empty file)
+- HTTP 404: Not Found (job not found)
+- HTTP 500: Internal Server Error (processing failure)
+- Custom error messages with detailed information
+
+Testing Strategy
+----------------
+- Unit tests for service classes
+- Integration tests for REST endpoints
+- Performance tests for large files
+- Security tests for malicious inputs
+
+Deployment Instructions
+----------------------
+1. Build: mvn clean package
+2. Run: java -jar target/PDLDocumentIdentification-1.0-SNAPSHOT.jar
+3. Access: http://localhost:8080/api
+4. Health check: http://localhost:8080/api/health
+
+Monitoring and Logging
+---------------------
+- Application logs: DEBUG level for development
+- Performance metrics: Processing time tracking
+- Error tracking: Exception logging with stack traces
+- Health monitoring: /api/health endpoint
+
+END OF SPECIFICATION

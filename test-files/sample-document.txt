@@ -1,0 +1,41 @@
+Sample Text Document for Testing
+==================================
+
+This is a sample text document created for testing the Document Extraction Service.
+
+Document Information:
+- Title: Sample Text Document
+- Author: Test User
+- Created: 2024-01-01
+- Purpose: Testing document extraction functionality
+
+Content Sections:
+
+1. Introduction
+   This document contains various types of content to test the extraction capabilities
+   of the Document Extraction Service. It includes text, formatting, and metadata.
+
+2. Technical Details
+   The service should be able to extract:
+   - Plain text content
+   - Document metadata
+   - File information
+   - Character encoding details
+
+3. Sample Data
+   Here are some sample data points:
+   - Numbers: 123, 456, 789
+   - Dates: 2024-01-01, 2024-12-31
+   - URLs: https://example.com, http://test.org
+   - Email: test@example.com
+
+4. Special Characters
+   Testing special characters: áéíóú, ñ, ç, ü, ß, €, £, ¥, ©, ®, ™
+
+5. Conclusion
+   This document should be successfully processed by the Apache Tika-based
+   document extraction service, demonstrating the system's ability to handle
+   text files and extract meaningful content and metadata.
+
+End of Document
+===============
