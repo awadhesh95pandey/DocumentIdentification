@@ -150,6 +150,13 @@ public class DocumentExtractionService {
 
             // Set extracted content
             String content = handler.toString().trim();
+            
+            // For image files, if no text content is extracted, provide a placeholder
+            if (content.isEmpty() && isImageFile(file.getName())) {
+                content = String.format("Image file: %s (MIME: %s)", file.getName(), docInfo.getMimeType());
+                logger.debug("Image file detected with no text content: {}", file.getName());
+            }
+            
             docInfo.setContent(content);
 
             // Extract and set metadata
@@ -192,11 +199,14 @@ public class DocumentExtractionService {
             } catch (NumberFormatException e) {
                 logger.debug("Could not parse page count: {}", pageCount);
             }
+        } else if (isImageFile(docInfo.getFileName())) {
+            // For image files, set page count to 1
+            docInfo.setPageCount(1);
         }
 
         // Check for images (basic heuristic)
         docInfo.setHasImages(content.contains("image") || content.contains("picture") || 
-                            metadata.get("hasImages") != null);
+                            metadata.get("hasImages") != null || isImageFile(docInfo.getFileName()));
 
         // Check for links (basic heuristic)
         docInfo.setHasLinks(content.contains("http://") || content.contains("https://") || 
@@ -218,6 +228,14 @@ public class DocumentExtractionService {
             return fileName.substring(lastDotIndex + 1).toLowerCase();
         }
         return "";
+    }
+
+    /**
+     * Check if a file is an image based on its extension.
+     */
+    private boolean isImageFile(String fileName) {
+        String extension = getFileExtension(fileName);
+        return extension.matches("jpg|jpeg|png|gif|bmp|tiff|tif|webp");
     }
 
     /**
