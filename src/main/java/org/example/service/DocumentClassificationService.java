@@ -100,7 +100,8 @@ public class DocumentClassificationService {
      */
     public ClassificationResult classifyTextDocument(String content, String fileName) {
         if (!isClassificationAvailable()) {
-            return ClassificationResult.disabled();
+            logger.info("OpenAI not available, falling back to filename-based classification for: {}", fileName);
+            return classifyByFilename(fileName);
         }
 
         long startTime = System.currentTimeMillis();
@@ -138,7 +139,8 @@ public class DocumentClassificationService {
      */
     public ClassificationResult classifyImageDocument(File imageFile) {
         if (!isClassificationAvailable()) {
-            return ClassificationResult.disabled();
+            logger.info("OpenAI not available, falling back to filename-based classification for image: {}", imageFile.getName());
+            return classifyByFilename(imageFile.getName());
         }
 
         long startTime = System.currentTimeMillis();
@@ -199,19 +201,24 @@ public class DocumentClassificationService {
             // Simple filename-based classification
             if (lowerFileName.contains("aadhar") || lowerFileName.contains("aadhaar")) {
                 type = DocumentType.AADHAR_CARD;
-                confidence = 0.6;
+                confidence = 0.8; // Higher confidence for clear filename match
+                reasoning = "Filename contains 'aadhar' keyword indicating Aadhar card document";
             } else if (lowerFileName.contains("pan")) {
                 type = DocumentType.PAN_CARD;
-                confidence = 0.6;
+                confidence = 0.7;
+                reasoning = "Filename contains 'pan' keyword indicating PAN card document";
             } else if (lowerFileName.contains("passport")) {
                 type = DocumentType.PASSPORT;
-                confidence = 0.6;
+                confidence = 0.7;
+                reasoning = "Filename contains 'passport' keyword indicating passport document";
             } else if (lowerFileName.contains("license") || lowerFileName.contains("dl")) {
                 type = DocumentType.DRIVING_LICENSE;
-                confidence = 0.6;
+                confidence = 0.7;
+                reasoning = "Filename contains driving license related keywords";
             } else if (lowerFileName.contains("voter")) {
                 type = DocumentType.VOTER_ID;
-                confidence = 0.6;
+                confidence = 0.7;
+                reasoning = "Filename contains 'voter' keyword indicating voter ID document";
             } else if (lowerFileName.contains("bank") && lowerFileName.contains("statement")) {
                 type = DocumentType.BANK_STATEMENT;
                 confidence = 0.5;
