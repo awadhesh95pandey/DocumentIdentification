@@ -1,0 +1,150 @@
+USER MANUAL
+===========
+Document Extraction Service - User Guide v1.0
+
+Table of Contents
+-----------------
+1. Introduction
+2. Getting Started
+3. Uploading Files
+4. Checking Status
+5. Retrieving Results
+6. Troubleshooting
+7. FAQ
+8. Support
+
+1. Introduction
+---------------
+Welcome to the Document Extraction Service! This application allows you to
+upload ZIP files containing various document formats and automatically
+extract text content and metadata from them.
+
+The service supports multiple document types including PDF, Microsoft Office
+documents, OpenDocument formats, and text files. All processing is done
+securely with built-in protection against malicious files.
+
+2. Getting Started
+------------------
+To use the Document Extraction Service:
+
+Prerequisites:
+- A ZIP file containing documents you want to process
+- Internet connection
+- Web browser or API client (like Postman or cURL)
+
+Base URL: http://localhost:8080/api
+
+3. Uploading Files
+------------------
+To upload a ZIP file for processing:
+
+Step 1: Prepare your ZIP file
+- Maximum file size: 100MB
+- Maximum entries in ZIP: 1000 files
+- Supported document formats: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, RTF, ODT, ODS, ODP
+
+Step 2: Upload via API
+POST /api/upload
+Content-Type: multipart/form-data
+Parameter: file (your ZIP file)
+
+Example using cURL:
+curl -X POST http://localhost:8080/api/upload -F "file=@your-documents.zip"
+
+Step 3: Save the Job ID
+The response will include a unique job ID that you'll need to check status
+and retrieve results.
+
+4. Checking Status
+------------------
+To check the processing status of your uploaded file:
+
+GET /api/status/{jobId}
+
+Replace {jobId} with the job ID received from the upload response.
+
+Status Values:
+- UPLOADED: File received and queued for processing
+- PROCESSING: Currently extracting documents
+- COMPLETED: Processing finished successfully
+- FAILED: Processing encountered an error
+
+Example:
+curl http://localhost:8080/api/status/12345678-1234-1234-1234-123456789012
+
+5. Retrieving Results
+---------------------
+Once processing is complete (status = COMPLETED), retrieve the results:
+
+GET /api/results/{jobId}
+
+The response includes:
+- List of extracted documents
+- Text content from each document
+- Metadata (author, title, creation date, etc.)
+- File information (size, type, page count)
+- Processing statistics
+
+Example:
+curl http://localhost:8080/api/results/12345678-1234-1234-1234-123456789012
+
+6. Troubleshooting
+------------------
+Common Issues and Solutions:
+
+Issue: "File too large" error
+Solution: Ensure your ZIP file is under 100MB
+
+Issue: "Only ZIP files are allowed" error
+Solution: Make sure your file has a .zip extension and is a valid ZIP archive
+
+Issue: "Processing failed" status
+Solution: Check that your ZIP contains supported document formats
+
+Issue: Job ID not found
+Solution: Verify the job ID is correct and the job hasn't been deleted
+
+Issue: No content extracted
+Solution: Ensure documents in the ZIP are not password-protected or corrupted
+
+7. FAQ
+------
+Q: What document formats are supported?
+A: PDF, Microsoft Office (DOC, DOCX, XLS, XLSX, PPT, PPTX), OpenDocument (ODT, ODS, ODP), and text files (TXT, RTF).
+
+Q: How long does processing take?
+A: Processing time depends on file size and number of documents. Typical processing takes 30 seconds to 5 minutes.
+
+Q: Are my documents stored permanently?
+A: No, uploaded files and extracted content are automatically cleaned up after processing.
+
+Q: Can I process password-protected documents?
+A: Currently, password-protected documents cannot be processed.
+
+Q: Is there a limit on the number of files I can upload?
+A: Each ZIP file can contain up to 1000 documents.
+
+Q: Can I upload multiple ZIP files simultaneously?
+A: Yes, each upload gets a unique job ID and is processed independently.
+
+8. Support
+----------
+For technical support or questions:
+
+Documentation: Check the README.md file in the project repository
+API Reference: GET /api/info for system information
+Health Check: GET /api/health to verify service status
+
+Contact Information:
+- Technical Issues: Create an issue in the project repository
+- General Questions: Refer to this user manual
+- System Status: Check /api/health endpoint
+
+Version Information:
+- Service Version: 1.0.0
+- Last Updated: January 2024
+- Compatible Formats: See /api/info endpoint
+
+Remember to keep your job IDs secure and don't share them with unauthorized users.
+
+END OF USER MANUAL
