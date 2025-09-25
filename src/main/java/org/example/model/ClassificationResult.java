@@ -21,6 +21,11 @@ public class ClassificationResult {
     
     private long processingTimeMs;
     private String errorMessage;
+    
+    // Pattern matching details
+    private java.util.List<String> extractedIdentifiers;
+    private java.util.List<String> matchedKeywords;
+    private java.util.List<String> matchedPatterns;
 
     public ClassificationResult() {
         this.classifiedAt = LocalDateTime.now();
@@ -158,6 +163,30 @@ public class ClassificationResult {
         this.errorMessage = errorMessage;
     }
 
+    public java.util.List<String> getExtractedIdentifiers() {
+        return extractedIdentifiers;
+    }
+
+    public void setExtractedIdentifiers(java.util.List<String> extractedIdentifiers) {
+        this.extractedIdentifiers = extractedIdentifiers;
+    }
+
+    public java.util.List<String> getMatchedKeywords() {
+        return matchedKeywords;
+    }
+
+    public void setMatchedKeywords(java.util.List<String> matchedKeywords) {
+        this.matchedKeywords = matchedKeywords;
+    }
+
+    public java.util.List<String> getMatchedPatterns() {
+        return matchedPatterns;
+    }
+
+    public void setMatchedPatterns(java.util.List<String> matchedPatterns) {
+        this.matchedPatterns = matchedPatterns;
+    }
+
     @Override
     public String toString() {
         return "ClassificationResult{" +
@@ -169,6 +198,9 @@ public class ClassificationResult {
                 ", classifiedAt=" + classifiedAt +
                 ", processingTimeMs=" + processingTimeMs +
                 ", errorMessage='" + errorMessage + '\'' +
+                ", extractedIdentifiers=" + extractedIdentifiers +
+                ", matchedKeywords=" + matchedKeywords +
+                ", matchedPatterns=" + matchedPatterns +
                 '}';
     }
 }

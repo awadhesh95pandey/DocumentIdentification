@@ -7,6 +7,7 @@ import com.theokanning.openai.completion.chat.ChatMessageRole;
 import com.theokanning.openai.service.OpenAiService;
 import org.example.model.ClassificationResult;
 import org.example.model.DocumentType;
+import org.example.util.TextPreprocessingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ public class DocumentClassificationService {
 
     @Autowired
     private ImageProcessingService imageProcessingService;
+
+    @Autowired
+    private PatternMatchingService patternMatchingService;
 
     @Value("${openai.api.model:gpt-4-vision-preview}")
     private String model;
@@ -96,36 +100,34 @@ public class DocumentClassificationService {
             """;
 
     /**
-     * Classifies a document based on its text content.
+     * Classifies a document based on its text content using hybrid approach.
      */
     public ClassificationResult classifyTextDocument(String content, String fileName) {
-        if (!isClassificationAvailable()) {
-            logger.warn("OpenAI classification not available for: {}", fileName);
-            return ClassificationResult.failure("OpenAI service not configured or unavailable", 0);
-        }
-
         long startTime = System.currentTimeMillis();
         
         try {
             logger.info("Classifying text document: {}", fileName);
 
-            String prompt = CLASSIFICATION_PROMPT + "\n\nDOCUMENT CONTENT:\n" + content;
+            // Step 1: Preprocess the content
+            String cleanedContent = TextPreprocessingUtil.cleanAndNormalize(content);
             
-            List<ChatMessage> messages = new ArrayList<>();
-            messages.add(new ChatMessage(ChatMessageRole.USER.value(), prompt));
-
-            ChatCompletionRequest request = ChatCompletionRequest.builder()
-                    .model(model.equals("gpt-4-vision-preview") ? "gpt-4" : model) // Use text model for text content
-                    .messages(messages)
-                    .maxTokens(maxTokens)
-                    .temperature(0.1) // Low temperature for consistent classification
-                    .build();
-
-            ChatCompletionResult result = openAiService.createChatCompletion(request);
-            String response = result.getChoices().get(0).getMessage().getContent();
-
-            long processingTime = System.currentTimeMillis() - startTime;
-            return parseClassificationResponse(response, model, false, processingTime);
+            // Step 2: Pattern matching analysis
+            PatternMatchingService.PatternMatchResult patternResult = 
+                patternMatchingService.analyzeContent(cleanedContent);
+            
+            // Step 3: Filename analysis
+            PatternMatchingService.PatternMatchResult filenameResult = 
+                patternMatchingService.analyzeFilename(fileName);
+            
+            // Step 4: OpenAI classification (if available)
+            ClassificationResult aiResult = null;
+            if (isClassificationAvailable()) {
+                aiResult = performOpenAIClassification(cleanedContent, fileName, false, startTime);
+            }
+            
+            // Step 5: Combine results using hybrid approach
+            return combineClassificationResults(patternResult, filenameResult, aiResult, 
+                System.currentTimeMillis() - startTime);
 
         } catch (Exception e) {
             long processingTime = System.currentTimeMillis() - startTime;
@@ -193,51 +195,26 @@ public class DocumentClassificationService {
         long startTime = System.currentTimeMillis();
         
         try {
-            String lowerFileName = fileName.toLowerCase();
-            DocumentType type = DocumentType.OTHER;
-            double confidence = 0.3; // Low confidence for filename-based classification
-            String reasoning = "Classification based on filename patterns";
-
-            // Simple filename-based classification
-            if (lowerFileName.contains("aadhar") || lowerFileName.contains("aadhaar")) {
-                type = DocumentType.AADHAR_CARD;
-                confidence = 0.8; // Higher confidence for clear filename match
-                reasoning = "Filename contains 'aadhar' keyword indicating Aadhar card document";
-            } else if (lowerFileName.contains("pan")) {
-                type = DocumentType.PAN_CARD;
-                confidence = 0.7;
-                reasoning = "Filename contains 'pan' keyword indicating PAN card document";
-            } else if (lowerFileName.contains("passport")) {
-                type = DocumentType.PASSPORT;
-                confidence = 0.7;
-                reasoning = "Filename contains 'passport' keyword indicating passport document";
-            } else if (lowerFileName.contains("license") || lowerFileName.contains("dl")) {
-                type = DocumentType.DRIVING_LICENSE;
-                confidence = 0.7;
-                reasoning = "Filename contains driving license related keywords";
-            } else if (lowerFileName.contains("voter")) {
-                type = DocumentType.VOTER_ID;
-                confidence = 0.7;
-                reasoning = "Filename contains 'voter' keyword indicating voter ID document";
-            } else if (lowerFileName.contains("bank") && lowerFileName.contains("statement")) {
-                type = DocumentType.BANK_STATEMENT;
-                confidence = 0.5;
-            } else if (lowerFileName.contains("salary") || lowerFileName.contains("payslip")) {
-                type = DocumentType.SALARY_SLIP;
-                confidence = 0.5;
-            } else if (lowerFileName.contains("invoice")) {
-                type = DocumentType.INVOICE;
-                confidence = 0.5;
-            } else if (lowerFileName.contains("receipt")) {
-                type = DocumentType.RECEIPT;
-                confidence = 0.5;
-            }
-
+            logger.info("Classifying by filename: {}", fileName);
+            
+            // Use the enhanced pattern matching service for filename analysis
+            PatternMatchingService.PatternMatchResult result = 
+                patternMatchingService.analyzeFilename(fileName);
+            
             long processingTime = System.currentTimeMillis() - startTime;
-            return ClassificationResult.success(type, confidence, reasoning, "filename-heuristic", false, processingTime);
+            
+            return ClassificationResult.success(
+                result.getDocumentType(), 
+                result.getConfidence(), 
+                result.getReasoning() + " [Method: filename-analysis]", 
+                "filename-pattern-matching", 
+                false, 
+                processingTime
+            );
 
         } catch (Exception e) {
             long processingTime = System.currentTimeMillis() - startTime;
+            logger.error("Error in filename classification: {}", e.getMessage());
             return ClassificationResult.failure("Filename classification failed: " + e.getMessage(), processingTime);
         }
     }
@@ -306,5 +283,141 @@ public class DocumentClassificationService {
             return "OpenAI service not configured (check API key)";
         }
         return "Classification service is available";
+    }
+
+    /**
+     * Performs OpenAI classification on cleaned content.
+     */
+    private ClassificationResult performOpenAIClassification(String cleanedContent, String fileName, 
+                                                           boolean isImageBased, long startTime) {
+        try {
+            String prompt = CLASSIFICATION_PROMPT + "\n\nDOCUMENT CONTENT:\n" + cleanedContent;
+            
+            List<ChatMessage> messages = new ArrayList<>();
+            messages.add(new ChatMessage(ChatMessageRole.USER.value(), prompt));
+
+            ChatCompletionRequest request = ChatCompletionRequest.builder()
+                    .model(model.equals("gpt-4-vision-preview") ? "gpt-4" : model) // Use text model for text content
+                    .messages(messages)
+                    .maxTokens(maxTokens)
+                    .temperature(0.1) // Low temperature for consistent classification
+                    .build();
+
+            ChatCompletionResult result = openAiService.createChatCompletion(request);
+            String response = result.getChoices().get(0).getMessage().getContent();
+
+            long processingTime = System.currentTimeMillis() - startTime;
+            return parseClassificationResponse(response, model, isImageBased, processingTime);
+
+        } catch (Exception e) {
+            long processingTime = System.currentTimeMillis() - startTime;
+            logger.error("Error in OpenAI classification for {}: {}", fileName, e.getMessage());
+            return ClassificationResult.failure("OpenAI classification failed: " + e.getMessage(), processingTime);
+        }
+    }
+
+    /**
+     * Combines results from pattern matching, filename analysis, and AI classification.
+     */
+    private ClassificationResult combineClassificationResults(
+            PatternMatchingService.PatternMatchResult patternResult,
+            PatternMatchingService.PatternMatchResult filenameResult,
+            ClassificationResult aiResult,
+            long totalProcessingTime) {
+        
+        logger.info("Combining classification results - Pattern: {} ({}), Filename: {} ({}), AI: {} ({})",
+            patternResult.getDocumentType(), patternResult.getConfidence(),
+            filenameResult.getDocumentType(), filenameResult.getConfidence(),
+            aiResult != null ? aiResult.getDocumentType() : "N/A",
+            aiResult != null ? aiResult.getConfidence() : "N/A");
+
+        // Determine the best classification result
+        DocumentType finalType = DocumentType.UNKNOWN;
+        double finalConfidence = 0.0;
+        String finalReasoning = "";
+        String aiModel = "hybrid-classification";
+
+        // Priority 1: High confidence pattern match (>= 0.8)
+        if (patternResult.getConfidence() >= 0.8) {
+            finalType = patternResult.getDocumentType();
+            finalConfidence = patternResult.getConfidence();
+            finalReasoning = "High confidence pattern match: " + patternResult.getReasoning();
+            
+            // Add extracted identifiers to reasoning
+            if (!patternResult.getExtractedIdentifiers().isEmpty()) {
+                finalReasoning += ". Extracted identifiers: " + String.join(", ", patternResult.getExtractedIdentifiers());
+            }
+        }
+        // Priority 2: AI result with good confidence (if available)
+        else if (aiResult != null && aiResult.isSuccessful() && aiResult.getConfidence() >= 0.7) {
+            finalType = aiResult.getDocumentType();
+            finalConfidence = aiResult.getConfidence();
+            finalReasoning = "AI classification: " + aiResult.getReasoning();
+            aiModel = aiResult.getAiModel();
+            
+            // Boost confidence if pattern matching agrees
+            if (patternResult.getDocumentType() == aiResult.getDocumentType() && patternResult.getConfidence() > 0.3) {
+                finalConfidence = Math.min(0.95, finalConfidence + 0.1);
+                finalReasoning += ". Confirmed by pattern matching.";
+            }
+        }
+        // Priority 3: High confidence filename match
+        else if (filenameResult.getConfidence() >= 0.7) {
+            finalType = filenameResult.getDocumentType();
+            finalConfidence = filenameResult.getConfidence();
+            finalReasoning = "Filename-based classification: " + filenameResult.getReasoning();
+        }
+        // Priority 4: Medium confidence pattern match
+        else if (patternResult.getConfidence() >= 0.5) {
+            finalType = patternResult.getDocumentType();
+            finalConfidence = patternResult.getConfidence();
+            finalReasoning = "Medium confidence pattern match: " + patternResult.getReasoning();
+        }
+        // Priority 5: AI result with medium confidence
+        else if (aiResult != null && aiResult.isSuccessful() && aiResult.getConfidence() >= 0.5) {
+            finalType = aiResult.getDocumentType();
+            finalConfidence = aiResult.getConfidence();
+            finalReasoning = "AI classification: " + aiResult.getReasoning();
+            aiModel = aiResult.getAiModel();
+        }
+        // Priority 6: Any pattern match
+        else if (patternResult.getConfidence() > 0.0) {
+            finalType = patternResult.getDocumentType();
+            finalConfidence = patternResult.getConfidence();
+            finalReasoning = "Low confidence pattern match: " + patternResult.getReasoning();
+        }
+        // Priority 7: Filename match
+        else if (filenameResult.getConfidence() > 0.0) {
+            finalType = filenameResult.getDocumentType();
+            finalConfidence = filenameResult.getConfidence();
+            finalReasoning = "Filename-based classification: " + filenameResult.getReasoning();
+        }
+        // Priority 8: AI result (any confidence)
+        else if (aiResult != null && aiResult.isSuccessful()) {
+            finalType = aiResult.getDocumentType();
+            finalConfidence = aiResult.getConfidence();
+            finalReasoning = "AI classification: " + aiResult.getReasoning();
+            aiModel = aiResult.getAiModel();
+        }
+        // Fallback: Unknown
+        else {
+            finalType = DocumentType.UNKNOWN;
+            finalConfidence = 0.0;
+            finalReasoning = "Unable to classify document using available methods";
+        }
+
+        // Create enhanced reasoning with method details
+        StringBuilder enhancedReasoning = new StringBuilder(finalReasoning);
+        enhancedReasoning.append(" [Methods used: ");
+        
+        List<String> methods = new ArrayList<>();
+        if (patternResult.getConfidence() > 0) methods.add("pattern-matching");
+        if (filenameResult.getConfidence() > 0) methods.add("filename-analysis");
+        if (aiResult != null && aiResult.isSuccessful()) methods.add("ai-classification");
+        
+        enhancedReasoning.append(String.join(", ", methods)).append("]");
+
+        return ClassificationResult.success(finalType, finalConfidence, enhancedReasoning.toString(), 
+                                          aiModel, false, totalProcessingTime);
     }
 }
