@@ -1,19 +1,31 @@
-# Document Classifier API - Java Spring Boot
+# Secure Document Classifier API with VaultGemma - Java Spring Boot
 
-A Java Spring Boot REST API for classifying Indian identity documents using Google Cloud Vision API for OCR and Google Vertex AI Gemini for document classification.
+A Java Spring Boot REST API for classifying Indian identity documents using Google Cloud Vision API for OCR and **Google's VaultGemma** for privacy-preserving document classification with differential privacy guarantees.
 
 ## 🚀 Features
 
+### 🔒 **VaultGemma Privacy Protection**
+- **Differential Privacy**: Mathematical privacy guarantees using Google's VaultGemma model
+- **Privacy Budget Management**: Per-user epsilon budget tracking and enforcement
+- **Secure Document Vault**: AES-256 encrypted storage with integrity verification
+- **Audit Logging**: Comprehensive privacy and security event tracking
+- **Zero Data Leakage**: In-memory processing with secure cleanup
+
+### 📄 **Document Processing**
 - **ZIP File Processing**: Upload ZIP files containing multiple document images
 - **OCR Text Extraction**: Uses Google Cloud Vision API for accurate text extraction
-- **AI-Powered Classification**: Leverages Google Vertex AI Gemini 2.0-flash model for document classification
+- **Privacy-Preserving Classification**: VaultGemma with differential privacy for document classification
 - **Supported Document Types**:
   - Aadhaar Card
   - PAN Card
   - Voter ID
   - Driving License
-- **Robust Error Handling**: Comprehensive error handling and validation
-- **Temporary File Management**: Automatic cleanup of temporary files
+
+### 🛡️ **Security & Compliance**
+- **Enterprise Security**: HTTP Basic Auth, HTTPS, security headers
+- **GDPR/HIPAA Compliant**: Data minimization, right to erasure, audit trails
+- **Secure APIs**: Separate secure endpoints for sensitive operations
+- **Access Controls**: User-based document access restrictions
 
 ## 🛠️ Technology Stack
 
