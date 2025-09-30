@@ -330,8 +330,8 @@ public class VaultGemmaService {
                 return true;
             } else {
                 // Demo mode: Use privacy-preserving fallback classification
-                logger.info("VaultGemma model not found at: {}, using demo mode with privacy-preserving fallback", 
-                           modelPath.toAbsolutePath());
+                logger.info("VaultGemma local model not found at: {}", modelPath.toAbsolutePath());
+                logger.info("✅ Using cloud-based VaultGemma with Hugging Face API + privacy-preserving fallback");
                 return true; // Enable VaultGemma features in demo mode
             }
         } catch (Exception e) {
