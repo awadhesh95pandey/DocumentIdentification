@@ -112,10 +112,10 @@ The API will be available at `http://localhost:8080`
 
 ## 📚 API Documentation
 
-### Secure Document Classification
-**Endpoint**: `POST /api/secure-classify-documents`
+### Document Classification with VaultGemma
+**Endpoint**: `POST /api/classify-documents`
 
-**Description**: Upload a ZIP file containing document images for secure classification with VaultGemma differential privacy.
+**Description**: Upload a ZIP file containing document images for classification. Automatically uses VaultGemma differential privacy when enabled.
 
 **Request**:
 - Method: `POST`
@@ -152,7 +152,7 @@ The API will be available at `http://localhost:8080`
 **Example using cURL**:
 ```bash
 curl -X POST \
-  http://localhost:8080/api/secure-classify-documents \
+  http://localhost:8080/api/classify-documents \
   -H 'Content-Type: multipart/form-data' \
   -F 'file=@documents.zip'
 ```
@@ -202,13 +202,29 @@ curl -X POST \
 ```json
 {
   "status": "healthy",
-  "service": "Secure Document Classifier API with VaultGemma",
+  "service": "Document Classifier API with VaultGemma",
   "version": "2.0.0",
   "vaultGemmaEnabled": true,
   "differentialPrivacy": true,
-  "encryptionEnabled": true
+  "encryptionEnabled": true,
+  "auditingEnabled": true,
+  "vaultGemmaModelAvailable": true
 }
 ```
+
+## 🏗️ Architecture
+
+### Unified Controller Design
+- **Single Controller**: `DocumentClassifierController` handles all document operations
+- **VaultGemma Integration**: Separate `VaultGemmaIntegration` service for clean separation of concerns
+- **Automatic Fallback**: Uses VaultGemma when available, falls back to regular classification
+- **No Duplicate Code**: Eliminated redundant controllers and consolidated functionality
+
+### VaultGemma Integration
+- **Privacy-First**: Differential privacy applied automatically when VaultGemma is enabled
+- **Secure Storage**: All documents encrypted with AES-256 and stored in secure vault
+- **Budget Management**: Privacy budget tracking prevents excessive data usage
+- **Audit Trail**: Complete logging of all document processing activities
 
 ## 🔧 Configuration
 
