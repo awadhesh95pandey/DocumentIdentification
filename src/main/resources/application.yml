@@ -21,6 +21,10 @@ gemini:
 
 vaultgemma:
   enabled: ${VAULTGEMMA_ENABLED:true}
+  huggingface:
+    api-url: https://api-inference.huggingface.co/models/google/vaultgemma-1b
+    token: ${HUGGINGFACE_TOKEN:your_token_here}
+    timeout: 30000
   model:
     path: ${VAULTGEMMA_MODEL_PATH:models/vaultgemma-1b}
     max-tokens: 1024

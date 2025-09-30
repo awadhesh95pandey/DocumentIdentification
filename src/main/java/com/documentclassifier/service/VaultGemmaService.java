@@ -26,6 +26,7 @@ public class VaultGemmaService {
     private final VaultGemmaConfig config;
     private final EncryptionService encryptionService;
     private final AuditService auditService;
+    private final HuggingFaceVaultGemmaService huggingFaceService;
     private final SecureRandom secureRandom;
     
     // Privacy budget tracking per user session
@@ -37,10 +38,12 @@ public class VaultGemmaService {
     @Autowired
     public VaultGemmaService(VaultGemmaConfig config, 
                            EncryptionService encryptionService,
-                           AuditService auditService) {
+                           AuditService auditService,
+                           HuggingFaceVaultGemmaService huggingFaceService) {
         this.config = config;
         this.encryptionService = encryptionService;
         this.auditService = auditService;
+        this.huggingFaceService = huggingFaceService;
         this.secureRandom = new SecureRandom();
         
         // Initialize classification patterns for privacy-preserving fallback
@@ -111,20 +114,36 @@ public class VaultGemmaService {
      */
     private String performPrivateClassification(String text, String userId) {
         try {
-            // Simulate VaultGemma model inference with differential privacy
-            // In production, this would load and run the actual VaultGemma ONNX model
+            String classification;
             
-            String classification = classifyWithPatterns(text);
-            
-            // Add differential privacy noise
-            classification = addDifferentialPrivacyNoise(classification, userId);
+            // Try to use Hugging Face VaultGemma API first
+            if (huggingFaceService.isServiceAvailable()) {
+                logger.debug("Using Hugging Face VaultGemma API for classification");
+                classification = huggingFaceService.classifyDocumentWithPrivacy(text, userId);
+            } else {
+                logger.debug("Hugging Face VaultGemma API not available, using pattern-based fallback");
+                // Fallback to pattern-based classification
+                classification = classifyWithPatterns(text);
+                
+                // Add differential privacy noise for fallback method
+                classification = addDifferentialPrivacyNoise(classification, userId);
+            }
             
             logger.debug("Private classification result: {} for user: {}", classification, userId);
             return classification;
             
         } catch (Exception e) {
-            logger.error("Private classification failed", e);
-            throw new RuntimeException("Private classification failed", e);
+            logger.error("Private classification failed for user {}: {}", userId, e.getMessage());
+            
+            // Fallback to pattern-based classification if API fails
+            try {
+                logger.info("Using fallback classification due to API error");
+                String fallbackClassification = classifyWithPatterns(text);
+                return addDifferentialPrivacyNoise(fallbackClassification, userId);
+            } catch (Exception fallbackError) {
+                logger.error("Fallback classification also failed", fallbackError);
+                throw new RuntimeException("All classification methods failed", fallbackError);
+            }
         }
     }
     
