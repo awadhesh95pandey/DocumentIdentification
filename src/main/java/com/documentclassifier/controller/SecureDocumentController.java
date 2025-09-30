@@ -10,19 +10,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/secure")
+@RequestMapping("/api")
 public class SecureDocumentController {
     
     private static final Logger logger = LoggerFactory.getLogger(SecureDocumentController.class);
@@ -47,23 +44,15 @@ public class SecureDocumentController {
         this.auditService = auditService;
     }
     
-    @PostMapping("/classify-documents")
-    public ResponseEntity<?> classifyDocumentsSecurely(@RequestParam("file") MultipartFile file,
-                                                      HttpServletRequest request) {
-        String userId = getCurrentUserId();
-        String ipAddress = getClientIpAddress(request);
-        String userAgent = request.getHeader("User-Agent");
+    @PostMapping("/secure-classify-documents")
+    public ResponseEntity<?> classifyDocumentsSecurely(@RequestParam("file") MultipartFile file) {
+        String userId = "user"; // Simplified user identification
         
-        logger.info("Received secure document classification request from user: {} (IP: {})", userId, ipAddress);
-        
-        // Audit authentication
-        auditService.logAuthentication(userId, "SECURE_DOCUMENT_CLASSIFICATION", true, ipAddress, userAgent);
+        logger.info("Received secure document classification request");
         
         // Validate file type
         if (!isZipFile(file)) {
-            logger.warn("Invalid file type received from user: {}", userId);
-            auditService.logSecurityEvent(userId, "INVALID_FILE_TYPE", "MEDIUM", false, 
-                                        "Invalid file type: " + file.getContentType());
+            logger.warn("Invalid file type received");
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Only ZIP files are allowed."));
         }
@@ -73,7 +62,7 @@ public class SecureDocumentController {
         try {
             // Extract images from ZIP
             extractedFiles = fileProcessingService.extractImagesFromZip(file);
-            logger.info("Extracted {} images from ZIP file for user: {}", extractedFiles.size(), userId);
+            logger.info("Extracted {} images from ZIP file", extractedFiles.size());
             
             // Process each image with VaultGemma
             Map<String, Object> results = new HashMap<>();
@@ -91,7 +80,7 @@ public class SecureDocumentController {
                             "classification", "None",
                             "reason", "No text extracted"
                         ));
-                        logger.warn("No text extracted from image: {} for user: {}", filename, userId);
+                        logger.warn("No text extracted from image: {}", filename);
                         continue;
                     }
                     
@@ -117,10 +106,10 @@ public class SecureDocumentController {
                                                      "SECURE_CLASSIFICATION", true, 
                                                      "Document classified and stored securely");
                     
-                    logger.debug("Processed {} securely: {} for user: {}", filename, documentType, userId);
+                    logger.debug("Processed {} securely: {}", filename, documentType);
                     
                 } catch (Exception e) {
-                    logger.error("Error processing image {} for user {}: {}", filename, userId, e.getMessage());
+                    logger.error("Error processing image {}: {}", filename, e.getMessage());
                     auditService.logDocumentProcessing(userId, filename, "UNKNOWN", 
                                                      "SECURE_CLASSIFICATION", false, 
                                                      "Error: " + e.getMessage());
@@ -142,13 +131,11 @@ public class SecureDocumentController {
             response.put("vaultGemmaEnabled", true);
             response.put("differentialPrivacy", true);
             
-            logger.info("Successfully processed {} images securely for user: {}", results.size(), userId);
+            logger.info("Successfully processed {} images securely", results.size());
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            logger.error("Error processing ZIP file for user {}: {}", userId, e.getMessage(), e);
-            auditService.logSecurityEvent(userId, "SECURE_PROCESSING_FAILED", "HIGH", false, 
-                                        "Secure processing failed: " + e.getMessage());
+            logger.error("Error processing ZIP file: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", e.getMessage()));
             
@@ -162,7 +149,7 @@ public class SecureDocumentController {
     
     @GetMapping("/documents")
     public ResponseEntity<?> listUserDocuments() {
-        String userId = getCurrentUserId();
+        String userId = "user";
         
         try {
             List<SecureDocumentVault.DocumentMetadata> documents = documentVault.listUserDocuments(userId);
@@ -170,15 +157,12 @@ public class SecureDocumentController {
             Map<String, Object> response = new HashMap<>();
             response.put("documents", documents);
             response.put("totalCount", documents.size());
-            response.put("userId", userId);
             
-            logger.info("Listed {} documents for user: {}", documents.size(), userId);
+            logger.info("Listed {} documents", documents.size());
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            logger.error("Error listing documents for user {}: {}", userId, e.getMessage());
-            auditService.logSecurityEvent(userId, "LIST_DOCUMENTS_FAILED", "MEDIUM", false, 
-                                        "Failed to list documents: " + e.getMessage());
+            logger.error("Error listing documents: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to list documents"));
         }
@@ -186,7 +170,7 @@ public class SecureDocumentController {
     
     @GetMapping("/documents/{documentId}")
     public ResponseEntity<?> retrieveDocument(@PathVariable String documentId) {
-        String userId = getCurrentUserId();
+        String userId = "user";
         
         try {
             SecureDocumentVault.SecureDocument document = documentVault.retrieveDocument(documentId, userId);
@@ -201,18 +185,11 @@ public class SecureDocumentController {
             response.put("dataSize", document.getData().length);
             response.put("retrieved", true);
             
-            logger.info("Retrieved document {} for user: {}", documentId, userId);
+            logger.info("Retrieved document {}", documentId);
             return ResponseEntity.ok(response);
-            
-        } catch (SecurityException e) {
-            logger.warn("Unauthorized access attempt to document {} by user: {}", documentId, userId);
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Access denied"));
                     
         } catch (Exception e) {
-            logger.error("Error retrieving document {} for user {}: {}", documentId, userId, e.getMessage());
-            auditService.logSecurityEvent(userId, "RETRIEVE_DOCUMENT_FAILED", "MEDIUM", false, 
-                                        "Failed to retrieve document: " + e.getMessage());
+            logger.error("Error retrieving document {}: {}", documentId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to retrieve document"));
         }
@@ -220,7 +197,7 @@ public class SecureDocumentController {
     
     @DeleteMapping("/documents/{documentId}")
     public ResponseEntity<?> deleteDocument(@PathVariable String documentId) {
-        String userId = getCurrentUserId();
+        String userId = "user";
         
         try {
             boolean deleted = documentVault.deleteDocument(documentId, userId);
@@ -234,18 +211,11 @@ public class SecureDocumentController {
             response.put("deleted", true);
             response.put("securelyDeleted", true);
             
-            logger.info("Deleted document {} for user: {}", documentId, userId);
+            logger.info("Deleted document {}", documentId);
             return ResponseEntity.ok(response);
-            
-        } catch (SecurityException e) {
-            logger.warn("Unauthorized delete attempt for document {} by user: {}", documentId, userId);
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Access denied"));
                     
         } catch (Exception e) {
-            logger.error("Error deleting document {} for user {}: {}", documentId, userId, e.getMessage());
-            auditService.logSecurityEvent(userId, "DELETE_DOCUMENT_FAILED", "MEDIUM", false, 
-                                        "Failed to delete document: " + e.getMessage());
+            logger.error("Error deleting document {}: {}", documentId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to delete document"));
         }
@@ -253,16 +223,16 @@ public class SecureDocumentController {
     
     @GetMapping("/privacy-budget")
     public ResponseEntity<?> getPrivacyBudgetStatus() {
-        String userId = getCurrentUserId();
+        String userId = "user";
         
         try {
             Map<String, Object> privacyStatus = vaultGemmaService.getPrivacyBudgetStatus(userId);
             
-            logger.debug("Privacy budget status requested for user: {}", userId);
+            logger.debug("Privacy budget status requested");
             return ResponseEntity.ok(privacyStatus);
             
         } catch (Exception e) {
-            logger.error("Error getting privacy budget for user {}: {}", userId, e.getMessage());
+            logger.error("Error getting privacy budget: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to get privacy budget status"));
         }
@@ -270,21 +240,20 @@ public class SecureDocumentController {
     
     @PostMapping("/privacy-budget/reset")
     public ResponseEntity<?> resetPrivacyBudget() {
-        String userId = getCurrentUserId();
+        String userId = "user";
         
         try {
             vaultGemmaService.resetPrivacyBudget(userId);
             
             Map<String, Object> response = new HashMap<>();
-            response.put("userId", userId);
             response.put("budgetReset", true);
             response.put("message", "Privacy budget has been reset");
             
-            logger.info("Privacy budget reset for user: {}", userId);
+            logger.info("Privacy budget reset");
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            logger.error("Error resetting privacy budget for user {}: {}", userId, e.getMessage());
+            logger.error("Error resetting privacy budget: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to reset privacy budget"));
         }
@@ -292,8 +261,6 @@ public class SecureDocumentController {
     
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> secureHealth() {
-        String userId = getCurrentUserId();
-        
         Map<String, Object> health = new HashMap<>();
         health.put("status", "healthy");
         health.put("service", "Secure Document Classifier API with VaultGemma");
@@ -303,33 +270,8 @@ public class SecureDocumentController {
         health.put("encryptionEnabled", true);
         health.put("auditingEnabled", true);
         health.put("vaultGemmaModelAvailable", vaultGemmaService.isVaultGemmaModelAvailable());
-        health.put("userId", userId);
         
         return ResponseEntity.ok(health);
-    }
-    
-    // Helper methods
-    
-    private String getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            return authentication.getName();
-        }
-        return "anonymous";
-    }
-    
-    private String getClientIpAddress(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
-        }
-        
-        return request.getRemoteAddr();
     }
     
     private boolean isZipFile(MultipartFile file) {

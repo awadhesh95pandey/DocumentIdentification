@@ -21,11 +21,11 @@ A Java Spring Boot REST API for classifying Indian identity documents using Goog
   - Voter ID
   - Driving License
 
-### 🛡️ **Security & Compliance**
-- **Enterprise Security**: HTTP Basic Auth, HTTPS, security headers
-- **GDPR/HIPAA Compliant**: Data minimization, right to erasure, audit trails
-- **Secure APIs**: Separate secure endpoints for sensitive operations
-- **Access Controls**: User-based document access restrictions
+### 🛡️ **Document Security**
+- **Document Encryption**: AES-256 encrypted storage for all documents
+- **Secure Processing**: In-memory processing with automatic cleanup
+- **Privacy Protection**: VaultGemma differential privacy for classification
+- **Audit Logging**: Document processing events tracked for compliance
 
 ## 🛠️ Technology Stack
 
@@ -112,10 +112,10 @@ The API will be available at `http://localhost:8080`
 
 ## 📚 API Documentation
 
-### Classify Documents
-**Endpoint**: `POST /api/classify-documents`
+### Secure Document Classification
+**Endpoint**: `POST /api/secure-classify-documents`
 
-**Description**: Upload a ZIP file containing document images for classification.
+**Description**: Upload a ZIP file containing document images for secure classification with VaultGemma differential privacy.
 
 **Request**:
 - Method: `POST`
@@ -125,19 +125,75 @@ The API will be available at `http://localhost:8080`
 **Response**:
 ```json
 {
-  "image1.jpg": "PAN",
-  "image2.png": "Aadhaar",
-  "image3.webp": "Voter ID"
+  "results": {
+    "image1.jpg": {
+      "classification": "PAN",
+      "documentId": "DOC_ABC123",
+      "securelyStored": true,
+      "privacyProtected": true
+    },
+    "image2.png": {
+      "classification": "Aadhaar", 
+      "documentId": "DOC_DEF456",
+      "securelyStored": true,
+      "privacyProtected": true
+    }
+  },
+  "privacyBudgetStatus": {
+    "usedBudget": 0.2,
+    "remainingBudget": 0.8,
+    "budgetExceeded": false
+  },
+  "vaultGemmaEnabled": true,
+  "differentialPrivacy": true
 }
 ```
 
 **Example using cURL**:
 ```bash
 curl -X POST \
-  http://localhost:8080/api/classify-documents \
+  http://localhost:8080/api/secure-classify-documents \
   -H 'Content-Type: multipart/form-data' \
   -F 'file=@documents.zip'
 ```
+
+### Document Vault Management
+
+**List Documents**: `GET /api/documents`
+```json
+{
+  "documents": [
+    {
+      "documentId": "DOC_ABC123",
+      "originalFilename": "aadhaar.jpg",
+      "documentType": "Aadhaar",
+      "storedTimestamp": "2024-01-01T12:00:00",
+      "fileSize": 1024,
+      "encrypted": true
+    }
+  ],
+  "totalCount": 1
+}
+```
+
+**Retrieve Document**: `GET /api/documents/{documentId}`
+
+**Delete Document**: `DELETE /api/documents/{documentId}`
+
+### Privacy Budget Management
+
+**Check Budget**: `GET /api/privacy-budget`
+```json
+{
+  "userId": "user",
+  "usedBudget": 0.3,
+  "maxBudget": 1.0,
+  "remainingBudget": 0.7,
+  "budgetExceeded": false
+}
+```
+
+**Reset Budget**: `POST /api/privacy-budget/reset`
 
 ### Health Check
 **Endpoint**: `GET /api/health`
@@ -146,8 +202,11 @@ curl -X POST \
 ```json
 {
   "status": "healthy",
-  "service": "Document Classifier API",
-  "version": "1.0.0"
+  "service": "Secure Document Classifier API with VaultGemma",
+  "version": "2.0.0",
+  "vaultGemmaEnabled": true,
+  "differentialPrivacy": true,
+  "encryptionEnabled": true
 }
 ```
 
