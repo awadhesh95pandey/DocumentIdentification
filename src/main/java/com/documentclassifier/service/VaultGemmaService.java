@@ -51,6 +51,13 @@ public class VaultGemmaService {
     }
     
     /**
+     * Classify document with privacy protection (public method for integration)
+     */
+    public String classifyWithPrivacy(String extractedText, String userId) {
+        return classifyDocumentTypeSecurely(extractedText, userId);
+    }
+    
+    /**
      * Classify document type using VaultGemma with differential privacy
      */
     public String classifyDocumentTypeSecurely(String extractedText, String userId) {
@@ -185,7 +192,14 @@ public class VaultGemmaService {
     }
     
     /**
-     * Check if user has sufficient privacy budget
+     * Check if user has sufficient privacy budget (public method)
+     */
+    public boolean hasPrivacyBudget(String userId) {
+        return checkPrivacyBudget(userId);
+    }
+    
+    /**
+     * Check if user has sufficient privacy budget (private method)
      */
     private boolean checkPrivacyBudget(String userId) {
         double usedBudget = privacyBudgetTracker.getOrDefault(userId, 0.0);

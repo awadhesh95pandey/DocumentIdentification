@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -59,9 +61,18 @@ public class VaultGemmaIntegration {
             // Classify document with differential privacy
             String documentType = vaultGemmaService.classifyWithPrivacy(extractedText, userId);
             
+            // Convert File to byte array for secure storage
+            byte[] documentData;
+            try {
+                documentData = Files.readAllBytes(originalFile.toPath());
+            } catch (IOException e) {
+                logger.error("Failed to read file {} for secure storage: {}", filename, e.getMessage());
+                return ProcessingResult.error(filename, "Failed to read file for secure storage");
+            }
+            
             // Store document securely in vault
             String documentId = documentVault.storeDocument(
-                originalFile, 
+                documentData, 
                 filename, 
                 documentType, 
                 userId
