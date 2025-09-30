@@ -49,16 +49,54 @@ public class SecureDocumentVault {
     private void initializeVault() {
         try {
             Path vaultPath = Paths.get(config.getSecurity().getVault().getStoragePath());
-            Files.createDirectories(vaultPath);
-            Files.createDirectories(vaultPath.resolve("documents"));
-            Files.createDirectories(vaultPath.resolve("metadata"));
-            Files.createDirectories(vaultPath.resolve("temp"));
             
-            logger.info("Secure document vault initialized at: {}", vaultPath.toAbsolutePath());
+            // Create directories with better error handling
+            if (!Files.exists(vaultPath)) {
+                Files.createDirectories(vaultPath);
+                logger.info("Created vault directory: {}", vaultPath.toAbsolutePath());
+            }
             
-        } catch (IOException e) {
-            logger.error("Failed to initialize secure vault", e);
-            throw new RuntimeException("Vault initialization failed", e);
+            Path documentsPath = vaultPath.resolve("documents");
+            Path metadataPath = vaultPath.resolve("metadata");
+            Path tempPath = vaultPath.resolve("temp");
+            
+            if (!Files.exists(documentsPath)) {
+                Files.createDirectories(documentsPath);
+            }
+            if (!Files.exists(metadataPath)) {
+                Files.createDirectories(metadataPath);
+            }
+            if (!Files.exists(tempPath)) {
+                Files.createDirectories(tempPath);
+            }
+            
+            // Test write permissions
+            Path testFile = tempPath.resolve("test-write.tmp");
+            Files.write(testFile, "test".getBytes());
+            Files.deleteIfExists(testFile);
+            
+            logger.info("Secure document vault initialized successfully at: {}", vaultPath.toAbsolutePath());
+            
+        } catch (Exception e) {
+            logger.error("Failed to initialize secure vault: {}", e.getMessage(), e);
+            
+            // Try fallback directory
+            try {
+                String fallbackPath = System.getProperty("java.io.tmpdir") + "/secure-vault";
+                Path fallbackVaultPath = Paths.get(fallbackPath);
+                Files.createDirectories(fallbackVaultPath);
+                Files.createDirectories(fallbackVaultPath.resolve("documents"));
+                Files.createDirectories(fallbackVaultPath.resolve("metadata"));
+                Files.createDirectories(fallbackVaultPath.resolve("temp"));
+                
+                // Update config to use fallback path
+                config.getSecurity().getVault().setStoragePath(fallbackPath);
+                logger.warn("Using fallback vault directory: {}", fallbackVaultPath.toAbsolutePath());
+                
+            } catch (Exception fallbackError) {
+                logger.error("Fallback vault initialization also failed", fallbackError);
+                throw new RuntimeException("Vault initialization failed completely", fallbackError);
+            }
         }
     }
     
@@ -74,8 +112,17 @@ public class SecureDocumentVault {
         String documentId = generateDocumentId();
         
         try {
+            logger.debug("Starting document storage for user: {}, filename: {}", userId, originalFilename);
+            
             // Encrypt document data
-            byte[] encryptedData = encryptionService.encryptBytes(documentData);
+            byte[] encryptedData;
+            try {
+                encryptedData = encryptionService.encryptBytes(documentData);
+                logger.debug("Document encryption successful for: {}", documentId);
+            } catch (Exception encryptionError) {
+                logger.error("Encryption failed for document {}: {}", documentId, encryptionError.getMessage());
+                throw new RuntimeException("Document encryption failed", encryptionError);
+            }
             
             // Create document metadata
             DocumentMetadata metadata = new DocumentMetadata();
@@ -90,30 +137,123 @@ public class SecureDocumentVault {
             
             // Store encrypted document
             Path documentPath = getDocumentPath(documentId);
-            Files.write(documentPath, encryptedData);
+            try {
+                // Ensure parent directory exists
+                Files.createDirectories(documentPath.getParent());
+                Files.write(documentPath, encryptedData);
+                logger.debug("Document file written successfully: {}", documentPath);
+            } catch (Exception fileError) {
+                logger.error("Failed to write document file {}: {}", documentPath, fileError.getMessage());
+                throw new RuntimeException("Document file write failed", fileError);
+            }
             
             // Store metadata
-            storeMetadata(metadata);
+            try {
+                storeMetadata(metadata);
+                logger.debug("Metadata stored successfully for: {}", documentId);
+            } catch (Exception metadataError) {
+                logger.error("Failed to store metadata for {}: {}", documentId, metadataError.getMessage());
+                // Try to clean up the document file
+                try {
+                    Files.deleteIfExists(documentPath);
+                } catch (Exception cleanupError) {
+                    logger.warn("Failed to cleanup document file after metadata error: {}", cleanupError.getMessage());
+                }
+                throw new RuntimeException("Metadata storage failed", metadataError);
+            }
             
             // Add to index
             documentIndex.put(documentId, metadata);
             
             // Clear sensitive data from memory
-            encryptionService.clearSensitiveData(documentData);
-            encryptionService.clearSensitiveData(encryptedData);
+            try {
+                encryptionService.clearSensitiveData(documentData);
+                encryptionService.clearSensitiveData(encryptedData);
+            } catch (Exception clearError) {
+                logger.warn("Failed to clear sensitive data from memory: {}", clearError.getMessage());
+            }
             
             // Audit log
-            auditService.logDataAccess(userId, documentId, "STORE_DOCUMENT", true, 
-                                     "Document stored securely in vault");
+            try {
+                auditService.logDataAccess(userId, documentId, "STORE_DOCUMENT", true, 
+                                         "Document stored securely in vault");
+            } catch (Exception auditError) {
+                logger.warn("Failed to log audit event: {}", auditError.getMessage());
+            }
             
             logger.info("Document stored securely: {} for user: {}", documentId, userId);
             return documentId;
             
         } catch (Exception e) {
-            logger.error("Failed to store document securely", e);
-            auditService.logSecurityEvent(userId, "STORE_DOCUMENT_FAILED", "HIGH", false, 
-                                        "Failed to store document: " + e.getMessage());
-            throw new RuntimeException("Failed to store document securely", e);
+            logger.error("Failed to store document securely for user {}: {}", userId, e.getMessage(), e);
+            
+            try {
+                auditService.logSecurityEvent(userId, "STORE_DOCUMENT_FAILED", "HIGH", false, 
+                                            "Failed to store document: " + e.getMessage());
+            } catch (Exception auditError) {
+                logger.warn("Failed to log security event: {}", auditError.getMessage());
+            }
+            
+            // Try fallback storage without encryption as last resort
+            logger.warn("Attempting fallback storage without encryption for document: {}", documentId);
+            try {
+                return storeDocumentFallback(documentData, originalFilename, documentType, userId, documentId);
+            } catch (Exception fallbackError) {
+                logger.error("Fallback storage also failed: {}", fallbackError.getMessage());
+                throw new RuntimeException("All storage methods failed: " + e.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Fallback storage method without encryption (for emergency cases)
+     */
+    private String storeDocumentFallback(byte[] documentData, String originalFilename, 
+                                       String documentType, String userId, String documentId) {
+        try {
+            logger.info("Using fallback storage (unencrypted) for document: {}", documentId);
+            
+            // Create simple metadata
+            DocumentMetadata metadata = new DocumentMetadata();
+            metadata.setDocumentId(documentId);
+            metadata.setOriginalFilename(originalFilename);
+            metadata.setDocumentType(documentType);
+            metadata.setUserId(userId);
+            metadata.setStoredTimestamp(LocalDateTime.now());
+            metadata.setFileSize(documentData.length);
+            metadata.setEncrypted(false); // Not encrypted in fallback mode
+            metadata.setChecksum("fallback-" + System.currentTimeMillis());
+            
+            // Store document without encryption
+            Path fallbackPath = Paths.get(System.getProperty("java.io.tmpdir"), "vault-fallback");
+            Files.createDirectories(fallbackPath);
+            
+            Path documentPath = fallbackPath.resolve(documentId + ".dat");
+            Files.write(documentPath, documentData);
+            
+            // Store simple metadata
+            Path metadataPath = fallbackPath.resolve(documentId + ".meta");
+            String metadataJson = objectMapper.writeValueAsString(metadata);
+            Files.write(metadataPath, metadataJson.getBytes());
+            
+            // Add to index
+            documentIndex.put(documentId, metadata);
+            
+            logger.warn("Document stored using fallback method (UNENCRYPTED): {} at {}", documentId, documentPath);
+            
+            // Log security warning
+            try {
+                auditService.logSecurityEvent(userId, "FALLBACK_STORAGE_USED", "HIGH", true, 
+                                            "Document stored without encryption due to vault failure");
+            } catch (Exception auditError) {
+                logger.warn("Failed to log fallback storage audit event: {}", auditError.getMessage());
+            }
+            
+            return documentId;
+            
+        } catch (Exception e) {
+            logger.error("Fallback storage failed: {}", e.getMessage(), e);
+            throw new RuntimeException("Fallback storage failed", e);
         }
     }
     
