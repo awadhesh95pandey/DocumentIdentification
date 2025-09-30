@@ -304,7 +304,7 @@ public class DocumentClassifierController {
             
             // Basic VaultGemma configuration
             status.put("vaultGemmaEnabled", vaultGemmaEnabled);
-            status.put("modelAvailable", vaultGemmaIntegration.isVaultGemmaModelAvailable());
+            status.put("modelAvailable", vaultGemmaIntegration.isVaultGemmaAvailable());
             
             // Hugging Face service status
             Map<String, Object> huggingFaceStatus = huggingFaceService.getServiceStatus();
@@ -312,7 +312,7 @@ public class DocumentClassifierController {
             
             // Overall service status
             boolean overallAvailable = vaultGemmaEnabled && 
-                (vaultGemmaIntegration.isVaultGemmaModelAvailable() || 
+                (vaultGemmaIntegration.isVaultGemmaAvailable() || 
                  (Boolean) huggingFaceStatus.get("available"));
             status.put("serviceAvailable", overallAvailable);
             

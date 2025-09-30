@@ -2,7 +2,8 @@ package com.documentclassifier.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -16,8 +17,9 @@ import java.util.Map;
  * Provides privacy-preserving document classification using online API calls
  */
 @Service
-@Slf4j
 public class HuggingFaceVaultGemmaService {
+    
+    private static final Logger log = LoggerFactory.getLogger(HuggingFaceVaultGemmaService.class);
     
     @Value("${vaultgemma.huggingface.api-url}")
     private String apiUrl;
