@@ -259,7 +259,7 @@ public class SecureDocumentController {
         }
     }
     
-    @GetMapping("/health")
+    @GetMapping("/secure-health")
     public ResponseEntity<Map<String, Object>> secureHealth() {
         Map<String, Object> health = new HashMap<>();
         health.put("status", "healthy");
