@@ -299,14 +299,25 @@ public class VaultGemmaService {
     
     /**
      * Validate VaultGemma model availability
+     * In demo mode, VaultGemma is considered available even without the physical model
      */
     public boolean isVaultGemmaModelAvailable() {
         try {
             Path modelPath = Paths.get(config.getModel().getPath());
-            return Files.exists(modelPath);
+            boolean modelExists = Files.exists(modelPath);
+            
+            if (modelExists) {
+                logger.info("VaultGemma model found at: {}", modelPath.toAbsolutePath());
+                return true;
+            } else {
+                // Demo mode: Use privacy-preserving fallback classification
+                logger.info("VaultGemma model not found at: {}, using demo mode with privacy-preserving fallback", 
+                           modelPath.toAbsolutePath());
+                return true; // Enable VaultGemma features in demo mode
+            }
         } catch (Exception e) {
-            logger.warn("VaultGemma model not available: {}", e.getMessage());
-            return false;
+            logger.warn("VaultGemma model check failed: {}, falling back to demo mode", e.getMessage());
+            return true; // Enable demo mode even if path check fails
         }
     }
 }

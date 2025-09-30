@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +48,12 @@ public class DocumentClassifierController {
         this.classificationService = classificationService;
         this.vaultGemmaIntegration = vaultGemmaIntegration;
         this.documentVault = documentVault;
+    }
+    
+    @PostConstruct
+    public void init() {
+        logger.info("DocumentClassifierController initialized with VaultGemma enabled: {}", vaultGemmaEnabled);
+        logger.info("VaultGemma model available: {}", vaultGemmaIntegration.isVaultGemmaAvailable());
     }
     
     @PostMapping("/classify-documents")
@@ -90,11 +97,14 @@ public class DocumentClassifierController {
                     }
                     
                     // Use VaultGemma if enabled, otherwise use regular classification
-                    if (vaultGemmaEnabled && vaultGemmaIntegration.isVaultGemmaAvailable()) {
+                    boolean isVaultGemmaAvailable = vaultGemmaIntegration.isVaultGemmaAvailable();
+                    logger.debug("VaultGemma status - Enabled: {}, Available: {}", vaultGemmaEnabled, isVaultGemmaAvailable);
+                    
+                    if (vaultGemmaEnabled && isVaultGemmaAvailable) {
                         VaultGemmaIntegration.ProcessingResult result = 
                             vaultGemmaIntegration.processDocumentSecurely(extractedText, imageFile, filename, userId);
                         results.put(filename, result.toMap());
-                        logger.debug("Processed {} with VaultGemma: {}", filename, result.getClassification());
+                        logger.info("Processed {} with VaultGemma: {}", filename, result.getClassification());
                     } else {
                         // Fallback to regular classification
                         String documentType = classificationService.classifyDocumentType(extractedText);
@@ -104,7 +114,8 @@ public class DocumentClassifierController {
                             "securelyStored", false,
                             "vaultGemmaUsed", false
                         ));
-                        logger.debug("Processed {} with regular classification: {}", filename, documentType);
+                        logger.info("Processed {} with regular classification (VaultGemma enabled: {}, available: {}): {}", 
+                                  filename, vaultGemmaEnabled, isVaultGemmaAvailable, documentType);
                     }
                     
                 } catch (Exception e) {
