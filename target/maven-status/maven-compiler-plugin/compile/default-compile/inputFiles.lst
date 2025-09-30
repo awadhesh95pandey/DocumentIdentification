@@ -1,0 +1,10 @@
+E:\Document_Identification_java\src\main\java\com\documentclassifier\DocumentClassifierApplication.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\exception\DocumentProcessingException.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\controller\DocumentClassifierController.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\dto\ClassificationResult.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\exception\GlobalExceptionHandler.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\config\GoogleCloudConfig.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\util\FileUtils.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\service\FileProcessingService.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\service\DocumentClassificationService.java
+E:\Document_Identification_java\src\main\java\com\documentclassifier\service\OcrService.java

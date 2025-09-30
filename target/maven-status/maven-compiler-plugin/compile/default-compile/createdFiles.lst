@@ -1,0 +1,10 @@
+com\documentclassifier\config\GoogleCloudConfig.class
+com\documentclassifier\service\OcrService.class
+com\documentclassifier\dto\ClassificationResult.class
+com\documentclassifier\service\DocumentClassificationService.class
+com\documentclassifier\exception\DocumentProcessingException.class
+com\documentclassifier\exception\GlobalExceptionHandler.class
+com\documentclassifier\service\FileProcessingService.class
+com\documentclassifier\DocumentClassifierApplication.class
+com\documentclassifier\util\FileUtils.class
+com\documentclassifier\controller\DocumentClassifierController.class

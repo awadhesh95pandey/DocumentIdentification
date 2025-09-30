@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: document-classifier-api
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+      enabled: true
+
+google:
+  cloud:
+    project-id: ${GOOGLE_CLOUD_PROJECT:pdlgcpcloud}
+    location: ${GOOGLE_CLOUD_LOCATION:us-central1}
+
+gemini:
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
+
+logging:
+  level:
+    com.documentclassifier: INFO
+    com.google.cloud: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
