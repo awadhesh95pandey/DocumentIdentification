@@ -341,23 +341,33 @@ public class GoogleVaultGemmaService {
         Map<String, String[]> patterns = new HashMap<>();
         
         patterns.put("PAN", new String[]{
-            "pan", "permanent account number", "income tax", "tax", "pancard", "pan card"
+            "pan", "permanent account number", "income tax", "tax", "pancard", "pan card",
+            "आयकर विभाग", "income tax department", "govt. of india", "भारत सरकार",
+            "स्थायी लेखा संख्या", "permanent account number card", "lhyps", "lyups",
+            "सत्यमेव जयते"
         });
         
         patterns.put("AADHAAR", new String[]{
-            "aadhaar", "aadhar", "uid", "unique identification", "uidai", "12 digit", "biometric"
+            "aadhaar", "aadhar", "uid", "unique identification", "uidai", "12 digit", "biometric",
+            "आधार", "मेरा आधार", "मेरी पहचान", "government of india", "भारत सरकार",
+            "जन्म तारीख", "dob", "date of birth", "original seen and verified",
+            "7840", "9943", "3984"
         });
         
         patterns.put("PASSPORT", new String[]{
-            "passport", "republic of india", "immigration", "visa", "travel document", "passport no"
+            "passport", "republic of india", "immigration", "visa", "travel document", "passport no",
+            "भारत गणराज्य", "पासपोर्ट", "ministry of external affairs"
         });
         
         patterns.put("DRIVING_LICENSE", new String[]{
-            "driving license", "driving licence", "dl", "motor vehicle", "transport", "license no"
+            "driving license", "driving licence", "dl", "motor vehicle", "transport", "license no",
+            "ड्राइविंग लाइसेंस", "परिवहन विभाग", "transport department", "rto"
         });
         
         patterns.put("VOTER_ID", new String[]{
-            "voter", "election", "electoral", "voter id", "epic", "election commission"
+            "voter", "election", "electoral", "voter id", "epic", "election commission",
+            "भारत निर्वाचन आयोग", "election commission of india", "मतदाता फोटो पहचान पत्र",
+            "elector photo identity card", "ysm", "zpic", "pic", "epic"
         });
         
         return patterns;
