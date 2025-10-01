@@ -1,5 +1,7 @@
 package com.documentclassifier.controller;
 
+import com.documentclassifier.integration.VaultGemmaIntegration;
+import com.documentclassifier.service.GoogleVaultGemmaService;
 import com.documentclassifier.service.LocalVaultGemmaService;
 import com.documentclassifier.service.VaultGemmaService;
 import org.slf4j.Logger;
@@ -23,6 +25,8 @@ public class DocumentClassifierController {
     
     private final LocalVaultGemmaService localVaultGemmaService;
     private final VaultGemmaService vaultGemmaService;
+    private final VaultGemmaIntegration vaultGemmaIntegration;
+    private final GoogleVaultGemmaService googleVaultGemmaService;
     
     @Value("${vaultgemma.enabled:true}")
     private boolean vaultGemmaEnabled;
@@ -30,9 +34,13 @@ public class DocumentClassifierController {
     @Autowired
     public DocumentClassifierController(
             LocalVaultGemmaService localVaultGemmaService,
-            VaultGemmaService vaultGemmaService) {
+            VaultGemmaService vaultGemmaService,
+            VaultGemmaIntegration vaultGemmaIntegration,
+            GoogleVaultGemmaService googleVaultGemmaService) {
         this.localVaultGemmaService = localVaultGemmaService;
         this.vaultGemmaService = vaultGemmaService;
+        this.vaultGemmaIntegration = vaultGemmaIntegration;
+        this.googleVaultGemmaService = googleVaultGemmaService;
     }
     
     /**
@@ -181,6 +189,80 @@ public class DocumentClassifierController {
                         "error", "Health check failed: " + e.getMessage(),
                         "timestamp", System.currentTimeMillis()
                     ));
+        }
+    }
+    
+    /**
+     * Secure document classification endpoint using VaultGemma integration
+     * This endpoint provides enhanced security with differential privacy and secure storage
+     */
+    @PostMapping("/classifyDocuments")
+    public ResponseEntity<?> classifyDocuments(@RequestParam("text") String text) {
+        try {
+            if (text == null || text.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Text parameter is required"));
+            }
+            
+            // Generate userId automatically for privacy tracking
+            String userId = "user-" + UUID.randomUUID().toString().substring(0, 8);
+            
+            logger.info("Processing secure document classification for user: {}", userId);
+            
+            // Check if VaultGemma is available
+            if (!vaultGemmaIntegration.isVaultGemmaAvailable()) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "VaultGemma service is currently unavailable"));
+            }
+            
+            // Check privacy budget before processing using Google VaultGemma service
+            if (!googleVaultGemmaService.hasPrivacyBudget(userId)) {
+                Map<String, Object> privacyStatus = googleVaultGemmaService.getPrivacyBudgetStatus(userId);
+                logger.warn("Privacy budget exceeded for user: {}", userId);
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of(
+                        "error", "Privacy budget exceeded",
+                        "message", "You have exceeded your privacy budget. Please try again later or contact support.",
+                        "privacyBudgetStatus", privacyStatus
+                    ));
+            }
+            
+            // Perform secure classification using Google VaultGemma-1b
+            String classification = googleVaultGemmaService.classifyDocumentSecurely(text, userId);
+            
+            // Get updated privacy budget status from Google VaultGemma service
+            Map<String, Object> updatedPrivacyStatus = googleVaultGemmaService.getPrivacyBudgetStatus(userId);
+            
+            // Build response
+            Map<String, Object> response = new HashMap<>();
+            response.put("classification", classification);
+            response.put("userId", userId);
+            response.put("timestamp", System.currentTimeMillis());
+            response.put("vaultGemmaEnabled", vaultGemmaEnabled);
+            response.put("privacyProtected", true);
+            response.put("differentialPrivacy", true);
+            response.put("privacyBudgetStatus", updatedPrivacyStatus);
+            
+            // Add model availability status
+            Map<String, Object> modelStatus = vaultGemmaService.getModelAvailabilityStatus();
+            response.put("modelStatus", modelStatus);
+            response.put("primaryMethod", modelStatus.get("primaryMethod"));
+            
+            // Add Google VaultGemma service status
+            Map<String, Object> googleVaultGemmaStatus = googleVaultGemmaService.getServiceStatus();
+            response.put("googleVaultGemmaStatus", googleVaultGemmaStatus);
+            
+            logger.info("Secure document classification completed: {} for user: {}", classification, userId);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Secure document classification failed for user {}: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of(
+                    "error", "Secure classification failed",
+                    "message", e.getMessage(),
+                    "timestamp", System.currentTimeMillis()
+                ));
         }
     }
     
