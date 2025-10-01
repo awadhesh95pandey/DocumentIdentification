@@ -169,7 +169,14 @@ public class VaultGemmaService {
     }
     
     /**
-     * Check if user has sufficient privacy budget
+     * Check if user has sufficient privacy budget (public method for integration)
+     */
+    public boolean hasPrivacyBudget(String userId) {
+        return checkPrivacyBudget(userId);
+    }
+    
+    /**
+     * Check if user has sufficient privacy budget (internal method)
      */
     private boolean checkPrivacyBudget(String userId) {
         double usedBudget = privacyBudgetTracker.getOrDefault(userId, 0.0);
