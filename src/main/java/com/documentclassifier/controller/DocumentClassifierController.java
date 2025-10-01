@@ -4,6 +4,8 @@ import com.documentclassifier.integration.VaultGemmaIntegration;
 import com.documentclassifier.service.GoogleVaultGemmaService;
 import com.documentclassifier.service.LocalVaultGemmaService;
 import com.documentclassifier.service.VaultGemmaService;
+import com.documentclassifier.service.FileProcessingService;
+import com.documentclassifier.service.OcrService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +15,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,6 +32,8 @@ public class DocumentClassifierController {
     private final VaultGemmaService vaultGemmaService;
     private final VaultGemmaIntegration vaultGemmaIntegration;
     private final GoogleVaultGemmaService googleVaultGemmaService;
+    private final FileProcessingService fileProcessingService;
+    private final OcrService ocrService;
     
     @Value("${vaultgemma.enabled:true}")
     private boolean vaultGemmaEnabled;
@@ -36,11 +43,15 @@ public class DocumentClassifierController {
             LocalVaultGemmaService localVaultGemmaService,
             VaultGemmaService vaultGemmaService,
             VaultGemmaIntegration vaultGemmaIntegration,
-            GoogleVaultGemmaService googleVaultGemmaService) {
+            GoogleVaultGemmaService googleVaultGemmaService,
+            FileProcessingService fileProcessingService,
+            OcrService ocrService) {
         this.localVaultGemmaService = localVaultGemmaService;
         this.vaultGemmaService = vaultGemmaService;
         this.vaultGemmaIntegration = vaultGemmaIntegration;
         this.googleVaultGemmaService = googleVaultGemmaService;
+        this.fileProcessingService = fileProcessingService;
+        this.ocrService = ocrService;
     }
     
     /**
@@ -81,44 +92,161 @@ public class DocumentClassifierController {
     }
     
     /**
-     * File upload classification endpoint
+     * File upload classification endpoint - Enhanced to handle ZIP files with multiple documents
      */
     @PostMapping("/classify-file")
     public ResponseEntity<?> classifyFile(@RequestParam("file") MultipartFile file) {
+        List<File> extractedFiles = null;
         try {
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "File is required"));
             }
             
-            // For simplicity, just extract filename as text (in real scenario, you'd use OCR)
-            String extractedText = "Document: " + file.getOriginalFilename();
-            
             String userId = "user-" + UUID.randomUUID().toString().substring(0, 8);
+            String filename = file.getOriginalFilename();
+            
+            logger.info("Processing file: {} (size: {} bytes)", filename, file.getSize());
+            
+            // Check if it's a ZIP file
+            if (filename != null && filename.toLowerCase().endsWith(".zip")) {
+                return processZipFile(file, userId);
+            } else {
+                // Handle single image file
+                return processSingleFile(file, userId);
+            }
+            
+        } catch (Exception e) {
+            logger.error("File classification failed: {}", e.getMessage());
+            
+            // Clean up any extracted files on error
+            if (extractedFiles != null) {
+                fileProcessingService.cleanupFiles(extractedFiles);
+            }
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "File classification failed: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Process ZIP file containing multiple documents
+     */
+    private ResponseEntity<?> processZipFile(MultipartFile zipFile, String userId) {
+        List<File> extractedFiles = null;
+        try {
+            logger.info("Processing ZIP file: {}", zipFile.getOriginalFilename());
+            
+            // Extract images from ZIP file
+            extractedFiles = fileProcessingService.extractImagesFromZip(zipFile);
+            logger.info("Extracted {} images from ZIP file", extractedFiles.size());
+            
+            List<Map<String, Object>> documentResults = new ArrayList<>();
+            
+            // Process each extracted image
+            for (File imageFile : extractedFiles) {
+                try {
+                    logger.debug("Processing image: {}", imageFile.getName());
+                    
+                    // Extract text using OCR
+                    String extractedText = ocrService.extractTextFromImage(imageFile);
+                    
+                    if (extractedText.trim().isEmpty()) {
+                        logger.warn("No text extracted from image: {}", imageFile.getName());
+                        extractedText = "Document image: " + imageFile.getName();
+                    }
+                    
+                    // Classify the document using VaultGemma
+                    String classification = vaultGemmaService.classifyWithPrivacy(extractedText, userId);
+                    
+                    // Create result for this document
+                    Map<String, Object> documentResult = new HashMap<>();
+                    documentResult.put("filename", imageFile.getName());
+                    documentResult.put("classification", classification);
+                    documentResult.put("textLength", extractedText.length());
+                    documentResult.put("extractedText", extractedText.length() > 200 ? 
+                        extractedText.substring(0, 200) + "..." : extractedText);
+                    
+                    documentResults.add(documentResult);
+                    
+                    logger.info("Classified document: {} -> {}", imageFile.getName(), classification);
+                    
+                } catch (Exception e) {
+                    logger.error("Failed to process image {}: {}", imageFile.getName(), e.getMessage());
+                    
+                    // Add error result for this document
+                    Map<String, Object> errorResult = new HashMap<>();
+                    errorResult.put("filename", imageFile.getName());
+                    errorResult.put("classification", "ERROR");
+                    errorResult.put("error", e.getMessage());
+                    documentResults.add(errorResult);
+                }
+            }
+            
+            // Build comprehensive response
+            Map<String, Object> response = new HashMap<>();
+            response.put("filename", zipFile.getOriginalFilename());
+            response.put("fileType", "ZIP");
+            response.put("documentsProcessed", documentResults.size());
+            response.put("documents", documentResults);
+            response.put("vaultGemmaEnabled", vaultGemmaEnabled);
+            response.put("localModelUsed", localVaultGemmaService.isModelAvailable());
+            response.put("timestamp", System.currentTimeMillis());
+            
+            // Add privacy budget status (remove userId from response)
+            Map<String, Object> privacyStatus = vaultGemmaService.getPrivacyBudgetStatus(userId);
+            privacyStatus.remove("userId");
+            response.put("privacyBudgetStatus", privacyStatus);
+            
+            logger.info("ZIP file processing completed: {} documents processed from {}", 
+                       documentResults.size(), zipFile.getOriginalFilename());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("ZIP file processing failed: {}", e.getMessage());
+            throw new RuntimeException("ZIP file processing failed", e);
+        } finally {
+            // Always clean up extracted files
+            if (extractedFiles != null) {
+                fileProcessingService.cleanupFiles(extractedFiles);
+            }
+        }
+    }
+    
+    /**
+     * Process single image file
+     */
+    private ResponseEntity<?> processSingleFile(MultipartFile file, String userId) {
+        try {
+            logger.info("Processing single file: {}", file.getOriginalFilename());
+            
+            // For single files, we'll use a simple approach for now
+            // In a real implementation, you'd save the file temporarily and use OCR
+            String extractedText = "Document: " + file.getOriginalFilename();
             
             // Use VaultGemma service with three-tier fallback
             String classification = vaultGemmaService.classifyWithPrivacy(extractedText, userId);
             
             Map<String, Object> response = new HashMap<>();
             response.put("filename", file.getOriginalFilename());
+            response.put("fileType", "SINGLE");
             response.put("classification", classification);
             response.put("vaultGemmaEnabled", vaultGemmaEnabled);
             response.put("localModelUsed", localVaultGemmaService.isModelAvailable());
-            response.put("userId", userId);
             response.put("timestamp", System.currentTimeMillis());
             
-            // Add privacy budget status
+            // Add privacy budget status (remove userId from response)
             Map<String, Object> privacyStatus = vaultGemmaService.getPrivacyBudgetStatus(userId);
+            privacyStatus.remove("userId");
             response.put("privacyBudgetStatus", privacyStatus);
             
-            logger.info("File classified: {} -> {} for user: {}", 
-                       file.getOriginalFilename(), classification, userId);
+            logger.info("Single file classified: {} -> {}", file.getOriginalFilename(), classification);
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            logger.error("File classification failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "File classification failed: " + e.getMessage()));
+            logger.error("Single file processing failed: {}", e.getMessage());
+            throw new RuntimeException("Single file processing failed", e);
         }
     }
     
