@@ -8,11 +8,13 @@ import com.google.cloud.vertexai.VertexAI;
 import com.google.cloud.vertexai.generativeai.GenerativeModel;
 import com.google.cloud.vision.v1.ImageAnnotatorClient;
 import com.google.cloud.vision.v1.ImageAnnotatorSettings;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
 import java.io.IOException;
 @Configuration
 public class GoogleCloudConfig {
@@ -79,5 +81,17 @@ public class GoogleCloudConfig {
                 .setModelName(geminiModel)
                 .setVertexAi(vertexAI)
                 .build();
+    }
+    
+    @Bean
+    public RestTemplate restTemplate() {
+        logger.info("Creating RestTemplate for HTTP requests");
+        return new RestTemplate();
+    }
+    
+    @Bean
+    public ObjectMapper objectMapper() {
+        logger.info("Creating ObjectMapper for JSON processing");
+        return new ObjectMapper();
     }
 }

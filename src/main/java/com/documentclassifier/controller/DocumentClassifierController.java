@@ -6,6 +6,7 @@ import com.documentclassifier.service.LocalVaultGemmaService;
 import com.documentclassifier.service.VaultGemmaService;
 import com.documentclassifier.service.FileProcessingService;
 import com.documentclassifier.service.OcrService;
+import com.documentclassifier.service.VertexAIGeminiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,7 @@ public class DocumentClassifierController {
     private final GoogleVaultGemmaService googleVaultGemmaService;
     private final FileProcessingService fileProcessingService;
     private final OcrService ocrService;
+    private final VertexAIGeminiService vertexAIGeminiService;
     
     @Value("${vaultgemma.enabled:true}")
     private boolean vaultGemmaEnabled;
@@ -45,13 +47,15 @@ public class DocumentClassifierController {
             VaultGemmaIntegration vaultGemmaIntegration,
             GoogleVaultGemmaService googleVaultGemmaService,
             FileProcessingService fileProcessingService,
-            OcrService ocrService) {
+            OcrService ocrService,
+            VertexAIGeminiService vertexAIGeminiService) {
         this.localVaultGemmaService = localVaultGemmaService;
         this.vaultGemmaService = vaultGemmaService;
         this.vaultGemmaIntegration = vaultGemmaIntegration;
         this.googleVaultGemmaService = googleVaultGemmaService;
         this.fileProcessingService = fileProcessingService;
         this.ocrService = ocrService;
+        this.vertexAIGeminiService = vertexAIGeminiService;
     }
     
     /**
@@ -156,8 +160,8 @@ public class DocumentClassifierController {
                         extractedText = "Document image: " + imageFile.getName();
                     }
                     
-                    // Classify the document using VaultGemma
-                    String classification = vaultGemmaService.classifyWithPrivacy(extractedText, userId);
+                    // Classify the document using Vertex AI Gemini with VaultGemma protection
+                    String classification = vertexAIGeminiService.classifyDocumentSecurely(extractedText, userId);
                     
                     // Create result for this document
                     Map<String, Object> documentResult = new HashMap<>();
@@ -225,8 +229,8 @@ public class DocumentClassifierController {
             // In a real implementation, you'd save the file temporarily and use OCR
             String extractedText = "Document: " + file.getOriginalFilename();
             
-            // Use VaultGemma service with three-tier fallback
-            String classification = vaultGemmaService.classifyWithPrivacy(extractedText, userId);
+            // Use Vertex AI Gemini with VaultGemma protection
+            String classification = vertexAIGeminiService.classifyDocumentSecurely(extractedText, userId);
             
             Map<String, Object> response = new HashMap<>();
             response.put("filename", file.getOriginalFilename());
@@ -268,6 +272,7 @@ public class DocumentClassifierController {
             
             // Configuration info
             status.put("differentialPrivacy", true);
+            status.put("vertexAI", vertexAIGeminiService.getServiceStatus());
             status.put("timestamp", System.currentTimeMillis());
             
             logger.info("VaultGemma status check completed - Primary method: {}", 
