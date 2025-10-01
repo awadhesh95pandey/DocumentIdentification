@@ -5,6 +5,7 @@ import com.documentclassifier.service.DocumentClassificationService;
 import com.documentclassifier.service.FileProcessingService;
 import com.documentclassifier.service.OcrService;
 import com.documentclassifier.service.HuggingFaceVaultGemmaService;
+import com.documentclassifier.service.VaultGemmaService;
 import com.documentclassifier.integration.VaultGemmaIntegration;
 import com.documentclassifier.vault.SecureDocumentVault;
 import org.slf4j.Logger;
@@ -34,6 +35,7 @@ public class DocumentClassifierController {
     private final VaultGemmaIntegration vaultGemmaIntegration;
     private final SecureDocumentVault documentVault;
     private final HuggingFaceVaultGemmaService huggingFaceService;
+    private final VaultGemmaService vaultGemmaService;
     
     @Value("${vaultgemma.enabled:true}")
     private boolean vaultGemmaEnabled;
@@ -45,13 +47,15 @@ public class DocumentClassifierController {
             DocumentClassificationService classificationService,
             VaultGemmaIntegration vaultGemmaIntegration,
             SecureDocumentVault documentVault,
-            HuggingFaceVaultGemmaService huggingFaceService) {
+            HuggingFaceVaultGemmaService huggingFaceService,
+            VaultGemmaService vaultGemmaService) {
         this.fileProcessingService = fileProcessingService;
         this.ocrService = ocrService;
         this.classificationService = classificationService;
         this.vaultGemmaIntegration = vaultGemmaIntegration;
         this.documentVault = documentVault;
         this.huggingFaceService = huggingFaceService;
+        this.vaultGemmaService = vaultGemmaService;
     }
     
     @PostConstruct
@@ -295,7 +299,7 @@ public class DocumentClassifierController {
     }
     
     /**
-     * Get VaultGemma service status including Hugging Face API connectivity
+     * Get comprehensive VaultGemma service status including local model, API, and fallback options
      */
     @GetMapping("/vaultgemma/status")
     public ResponseEntity<?> getVaultGemmaStatus() {
@@ -306,14 +310,17 @@ public class DocumentClassifierController {
             status.put("vaultGemmaEnabled", vaultGemmaEnabled);
             status.put("modelAvailable", vaultGemmaIntegration.isVaultGemmaAvailable());
             
-            // Hugging Face service status
+            // Get detailed model availability status
+            Map<String, Object> modelStatus = vaultGemmaService.getModelAvailabilityStatus();
+            status.putAll(modelStatus);
+            
+            // Hugging Face service status (for backward compatibility)
             Map<String, Object> huggingFaceStatus = huggingFaceService.getServiceStatus();
             status.put("huggingFaceService", huggingFaceStatus);
             
             // Overall service status
             boolean overallAvailable = vaultGemmaEnabled && 
-                (vaultGemmaIntegration.isVaultGemmaAvailable() || 
-                 (Boolean) huggingFaceStatus.get("available"));
+                (Boolean) modelStatus.getOrDefault("overallAvailable", false);
             status.put("serviceAvailable", overallAvailable);
             
             // Configuration info
@@ -321,13 +328,53 @@ public class DocumentClassifierController {
             status.put("epsilonPerQuery", 0.1);
             status.put("differentialPrivacy", true);
             
-            logger.info("VaultGemma status check completed");
+            logger.info("VaultGemma status check completed - Primary method: {}", 
+                       modelStatus.get("primaryMethod"));
             return ResponseEntity.ok(status);
             
         } catch (Exception e) {
             logger.error("Error checking VaultGemma status: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to check VaultGemma status"));
+        }
+    }
+    
+    /**
+     * Get VaultGemma model health status
+     */
+    @GetMapping("/vaultgemma/health")
+    public ResponseEntity<?> getVaultGemmaHealth() {
+        try {
+            Map<String, Object> health = new HashMap<>();
+            
+            // Check overall VaultGemma availability
+            boolean vaultGemmaAvailable = vaultGemmaService.isVaultGemmaModelAvailable();
+            health.put("vaultGemmaAvailable", vaultGemmaAvailable);
+            
+            // Get detailed availability status
+            Map<String, Object> availabilityStatus = vaultGemmaService.getModelAvailabilityStatus();
+            health.put("modelStatus", availabilityStatus);
+            
+            // Determine health status
+            String healthStatus = vaultGemmaAvailable ? "UP" : "DOWN";
+            health.put("status", healthStatus);
+            health.put("timestamp", System.currentTimeMillis());
+            
+            HttpStatus responseStatus = vaultGemmaAvailable ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+            
+            logger.debug("VaultGemma health check - Status: {}, Primary: {}", 
+                        healthStatus, availabilityStatus.get("primaryMethod"));
+            
+            return ResponseEntity.status(responseStatus).body(health);
+            
+        } catch (Exception e) {
+            logger.error("Error checking VaultGemma health: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                        "status", "ERROR",
+                        "error", "Health check failed: " + e.getMessage(),
+                        "timestamp", System.currentTimeMillis()
+                    ));
         }
     }
     

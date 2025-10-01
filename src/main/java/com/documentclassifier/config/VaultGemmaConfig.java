@@ -31,6 +31,10 @@ public class VaultGemmaConfig {
         private int maxTokens = 1024;
         private double temperature = 0.1;
         private double privacyBudget = 1.0;
+        private double epsilonPerQuery = 0.1;
+        private int threads = 4;
+        private boolean enableLocalModel = true;
+        private int loadTimeoutSeconds = 300;
         
         public String getPath() {
             return path;
@@ -62,6 +66,38 @@ public class VaultGemmaConfig {
         
         public void setPrivacyBudget(double privacyBudget) {
             this.privacyBudget = privacyBudget;
+        }
+        
+        public double getEpsilonPerQuery() {
+            return epsilonPerQuery;
+        }
+        
+        public void setEpsilonPerQuery(double epsilonPerQuery) {
+            this.epsilonPerQuery = epsilonPerQuery;
+        }
+        
+        public int getThreads() {
+            return threads;
+        }
+        
+        public void setThreads(int threads) {
+            this.threads = threads;
+        }
+        
+        public boolean isEnableLocalModel() {
+            return enableLocalModel;
+        }
+        
+        public void setEnableLocalModel(boolean enableLocalModel) {
+            this.enableLocalModel = enableLocalModel;
+        }
+        
+        public int getLoadTimeoutSeconds() {
+            return loadTimeoutSeconds;
+        }
+        
+        public void setLoadTimeoutSeconds(int loadTimeoutSeconds) {
+            this.loadTimeoutSeconds = loadTimeoutSeconds;
         }
     }
     
