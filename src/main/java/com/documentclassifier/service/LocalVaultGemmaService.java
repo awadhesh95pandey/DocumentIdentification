@@ -299,7 +299,14 @@ public class LocalVaultGemmaService {
      * Apply softmax to logits
      */
     private float[] softmax(float[] logits) {
-        float max = Arrays.stream(logits).max().orElse(0f);
+        // Find max value manually since Arrays.stream doesn't work with float[]
+        float max = logits[0];
+        for (int i = 1; i < logits.length; i++) {
+            if (logits[i] > max) {
+                max = logits[i];
+            }
+        }
+        
         float[] exp = new float[logits.length];
         float sum = 0f;
         
