@@ -1,0 +1,60 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: document-classifier-api
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+      enabled: true
+
+
+google:
+  cloud:
+    project-id: ${GOOGLE_CLOUD_PROJECT:pdlgcpcloud}
+    location: ${GOOGLE_CLOUD_LOCATION:us-central1}
+
+gemini:
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
+
+vaultgemma:
+  enabled: ${VAULTGEMMA_ENABLED:true}
+  huggingface:
+    api-url: https://api-inference.huggingface.co/models/google/vaultgemma-1b
+    token: ${HUGGINGFACE_TOKEN:your_token_here}
+    timeout: 30000
+  model:
+    path: ${VAULTGEMMA_MODEL_PATH:models/vaultgemma-1b}
+    max-tokens: ${VAULTGEMMA_MAX_TOKENS:1024}
+    temperature: ${VAULTGEMMA_TEMPERATURE:0.1}
+    privacy-budget: ${VAULTGEMMA_PRIVACY_BUDGET:1.0}
+    epsilon-per-query: ${VAULTGEMMA_EPSILON_PER_QUERY:0.1}
+    threads: ${VAULTGEMMA_THREADS:4}
+    enable-local-model: ${VAULTGEMMA_ENABLE_LOCAL:true}
+    load-timeout-seconds: ${VAULTGEMMA_LOAD_TIMEOUT:300}
+  security:
+    encryption:
+      algorithm: AES
+      key-size: 256
+      mode: GCM
+    vault:
+      storage-path: ${VAULT_STORAGE_PATH:./secure-vault}
+      retention-days: ${VAULT_RETENTION_DAYS:30}
+      max-file-size: ${VAULT_MAX_FILE_SIZE:50MB}
+
+logging:
+  level:
+    com.documentclassifier: DEBUG
+    com.google.cloud: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/document-classifier.log
+
+audit:
+  enabled: true
+  log-file: logs/audit.log
+  retention-days: 90

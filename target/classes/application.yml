@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: document-classifier-api
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+      enabled: true
+
+
+google:
+  cloud:
+    project-id: ${GOOGLE_CLOUD_PROJECT:pdlgcpcloud}
+    location: ${GOOGLE_CLOUD_LOCATION:us-central1}
+
+gemini:
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
+
+vaultgemma:
+  model:
+    path: ${VAULTGEMMA_MODEL_PATH:models/vaultgemma-1b}
+    max-tokens: 1024
+    temperature: 0.1
+    privacy-budget: 1.0
+  security:
+    encryption:
+      algorithm: AES
+      key-size: 256
+    vault:
+      storage-path: ${VAULT_STORAGE_PATH:./secure-vault}
+      retention-days: 30
+
+jwt:
+  secret: ${JWT_SECRET:mySecretKey}
+  expiration: 86400000 # 24 hours
+
+logging:
+  level:
+    com.documentclassifier: DEBUG
+    com.google.cloud: WARN
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/document-classifier.log
+
+audit:
+  enabled: true
+  log-file: logs/audit.log
+  retention-days: 90
