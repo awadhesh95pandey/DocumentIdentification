@@ -27,6 +27,7 @@ public class VaultGemmaService {
     private final EncryptionService encryptionService;
     private final AuditService auditService;
     private final HuggingFaceVaultGemmaService huggingFaceService;
+    private final LocalVaultGemmaService localVaultGemmaService;
     private final SecureRandom secureRandom;
     
     // Privacy budget tracking per user session
@@ -39,11 +40,13 @@ public class VaultGemmaService {
     public VaultGemmaService(VaultGemmaConfig config, 
                            EncryptionService encryptionService,
                            AuditService auditService,
-                           HuggingFaceVaultGemmaService huggingFaceService) {
+                           HuggingFaceVaultGemmaService huggingFaceService,
+                           LocalVaultGemmaService localVaultGemmaService) {
         this.config = config;
         this.encryptionService = encryptionService;
         this.auditService = auditService;
         this.huggingFaceService = huggingFaceService;
+        this.localVaultGemmaService = localVaultGemmaService;
         this.secureRandom = new SecureRandom();
         
         // Initialize classification patterns for privacy-preserving fallback
@@ -108,42 +111,65 @@ public class VaultGemmaService {
     }
     
     /**
-     * Perform privacy-preserving classification
-     * This is a simplified implementation that demonstrates differential privacy concepts
-     * In a production environment, this would integrate with the actual VaultGemma model
+     * Perform privacy-preserving classification with three-tier fallback:
+     * 1. Local VaultGemma model (preferred)
+     * 2. Hugging Face VaultGemma API (fallback)
+     * 3. Pattern-based classification (final fallback)
      */
     private String performPrivateClassification(String text, String userId) {
         try {
             String classification;
             
-            // Try to use Hugging Face VaultGemma API first
-            if (huggingFaceService.isServiceAvailable()) {
-                logger.debug("Using Hugging Face VaultGemma API for classification");
-                classification = huggingFaceService.classifyDocumentWithPrivacy(text, userId);
+            // First priority: Try local VaultGemma model
+            if (config.getModel().isEnableLocalModel() && localVaultGemmaService.isModelAvailable()) {
+                logger.debug("Using local VaultGemma model for classification");
+                try {
+                    classification = localVaultGemmaService.classifyDocumentWithPrivacy(text, userId);
+                    logger.debug("Local VaultGemma classification successful: {} for user: {}", classification, userId);
+                    return classification;
+                } catch (Exception localError) {
+                    logger.warn("Local VaultGemma model failed, falling back to API: {}", localError.getMessage());
+                    auditService.logSecurityEvent(userId, "LOCAL_MODEL_FALLBACK", "MEDIUM", false, 
+                                                "Local model failed, using API fallback: " + localError.getMessage());
+                }
             } else {
-                logger.debug("Hugging Face VaultGemma API not available, using pattern-based fallback");
-                // Fallback to pattern-based classification
-                classification = classifyWithPatterns(text);
-                
-                // Add differential privacy noise for fallback method
-                classification = addDifferentialPrivacyNoise(classification, userId);
+                logger.debug("Local VaultGemma model not available or disabled");
             }
             
-            logger.debug("Private classification result: {} for user: {}", classification, userId);
+            // Second priority: Try Hugging Face VaultGemma API
+            if (huggingFaceService.isServiceAvailable()) {
+                logger.debug("Using Hugging Face VaultGemma API for classification");
+                try {
+                    classification = huggingFaceService.classifyDocumentWithPrivacy(text, userId);
+                    logger.debug("Hugging Face VaultGemma classification successful: {} for user: {}", classification, userId);
+                    return classification;
+                } catch (Exception apiError) {
+                    logger.warn("Hugging Face VaultGemma API failed, falling back to patterns: {}", apiError.getMessage());
+                    auditService.logSecurityEvent(userId, "API_MODEL_FALLBACK", "MEDIUM", false, 
+                                                "API model failed, using pattern fallback: " + apiError.getMessage());
+                }
+            } else {
+                logger.debug("Hugging Face VaultGemma API not available");
+            }
+            
+            // Final fallback: Pattern-based classification
+            logger.debug("Using pattern-based classification as final fallback");
+            classification = classifyWithPatterns(text);
+            
+            // Add differential privacy noise for fallback method
+            classification = addDifferentialPrivacyNoise(classification, userId);
+            
+            auditService.logPrivacyEvent(userId, "PATTERN_BASED_CLASSIFICATION", "MEDIUM", 
+                                       "Used pattern-based classification with differential privacy");
+            
+            logger.debug("Pattern-based classification result: {} for user: {}", classification, userId);
             return classification;
             
         } catch (Exception e) {
-            logger.error("Private classification failed for user {}: {}", userId, e.getMessage());
-            
-            // Fallback to pattern-based classification if API fails
-            try {
-                logger.info("Using fallback classification due to API error");
-                String fallbackClassification = classifyWithPatterns(text);
-                return addDifferentialPrivacyNoise(fallbackClassification, userId);
-            } catch (Exception fallbackError) {
-                logger.error("Fallback classification also failed", fallbackError);
-                throw new RuntimeException("All classification methods failed", fallbackError);
-            }
+            logger.error("All classification methods failed for user {}: {}", userId, e.getMessage());
+            auditService.logSecurityEvent(userId, "CLASSIFICATION_COMPLETE_FAILURE", "HIGH", false, 
+                                        "All classification methods failed: " + e.getMessage());
+            throw new RuntimeException("All classification methods failed", e);
         }
     }
     
@@ -318,25 +344,80 @@ public class VaultGemmaService {
     
     /**
      * Validate VaultGemma model availability
-     * In demo mode, VaultGemma is considered available even without the physical model
+     * Checks local model, API, and fallback options
      */
     public boolean isVaultGemmaModelAvailable() {
         try {
-            Path modelPath = Paths.get(config.getModel().getPath());
-            boolean modelExists = Files.exists(modelPath);
+            // Check local model availability
+            boolean localModelAvailable = config.getModel().isEnableLocalModel() && 
+                                        localVaultGemmaService.isModelAvailable();
             
-            if (modelExists) {
-                logger.info("VaultGemma model found at: {}", modelPath.toAbsolutePath());
+            // Check API availability
+            boolean apiAvailable = huggingFaceService.isServiceAvailable();
+            
+            // Always have pattern-based fallback
+            boolean patternFallbackAvailable = true;
+            
+            if (localModelAvailable) {
+                logger.info("✅ Local VaultGemma model available at: {}", 
+                           Paths.get(config.getModel().getPath()).toAbsolutePath());
                 return true;
-            } else {
-                // Demo mode: Use privacy-preserving fallback classification
-                logger.info("VaultGemma local model not found at: {}", modelPath.toAbsolutePath());
-                logger.info("✅ Using cloud-based VaultGemma with Hugging Face API + privacy-preserving fallback");
-                return true; // Enable VaultGemma features in demo mode
+            } else if (apiAvailable) {
+                logger.info("✅ Hugging Face VaultGemma API available (local model not loaded)");
+                return true;
+            } else if (patternFallbackAvailable) {
+                logger.info("✅ Pattern-based classification available (VaultGemma models not available)");
+                return true; // Enable VaultGemma features with pattern fallback
             }
+            
+            return false;
+            
         } catch (Exception e) {
-            logger.warn("VaultGemma model check failed: {}, falling back to demo mode", e.getMessage());
-            return true; // Enable demo mode even if path check fails
+            logger.warn("VaultGemma availability check failed: {}, using pattern fallback", e.getMessage());
+            return true; // Enable pattern fallback even if checks fail
         }
+    }
+    
+    /**
+     * Get detailed model availability status
+     */
+    public Map<String, Object> getModelAvailabilityStatus() {
+        Map<String, Object> status = new HashMap<>();
+        
+        try {
+            boolean localModelEnabled = config.getModel().isEnableLocalModel();
+            boolean localModelAvailable = localModelEnabled && localVaultGemmaService.isModelAvailable();
+            boolean apiAvailable = huggingFaceService.isServiceAvailable();
+            
+            status.put("localModel", Map.of(
+                "enabled", localModelEnabled,
+                "available", localModelAvailable,
+                "path", config.getModel().getPath(),
+                "metrics", localModelAvailable ? localVaultGemmaService.getModelMetrics() : Map.of()
+            ));
+            
+            status.put("apiModel", Map.of(
+                "available", apiAvailable,
+                "service", "Hugging Face VaultGemma"
+            ));
+            
+            status.put("patternFallback", Map.of(
+                "available", true,
+                "description", "Privacy-preserving pattern-based classification"
+            ));
+            
+            // Determine primary method
+            String primaryMethod = localModelAvailable ? "local" : 
+                                 apiAvailable ? "api" : "pattern";
+            status.put("primaryMethod", primaryMethod);
+            status.put("overallAvailable", true);
+            
+        } catch (Exception e) {
+            logger.error("Error getting model availability status", e);
+            status.put("error", e.getMessage());
+            status.put("overallAvailable", false);
+        }
+        
+        return status;
     }
 }

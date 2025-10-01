@@ -27,10 +27,13 @@ vaultgemma:
     timeout: 30000
   model:
     path: ${VAULTGEMMA_MODEL_PATH:models/vaultgemma-1b}
-    max-tokens: 1024
-    temperature: 0.1
+    max-tokens: ${VAULTGEMMA_MAX_TOKENS:1024}
+    temperature: ${VAULTGEMMA_TEMPERATURE:0.1}
     privacy-budget: ${VAULTGEMMA_PRIVACY_BUDGET:1.0}
     epsilon-per-query: ${VAULTGEMMA_EPSILON_PER_QUERY:0.1}
+    threads: ${VAULTGEMMA_THREADS:4}
+    enable-local-model: ${VAULTGEMMA_ENABLE_LOCAL:true}
+    load-timeout-seconds: ${VAULTGEMMA_LOAD_TIMEOUT:300}
   security:
     encryption:
       algorithm: AES
