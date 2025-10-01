@@ -197,18 +197,15 @@ public class DocumentClassifierController {
      * This endpoint provides enhanced security with differential privacy and secure storage
      */
     @PostMapping("/classifyDocuments")
-    public ResponseEntity<?> classifyDocuments(@RequestParam("text") String text,
-                                             @RequestParam(value = "userId", required = false) String userId) {
+    public ResponseEntity<?> classifyDocuments(@RequestParam("text") String text) {
         try {
             if (text == null || text.trim().isEmpty()) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "Text parameter is required"));
             }
             
-            // Generate userId if not provided
-            if (userId == null || userId.trim().isEmpty()) {
-                userId = "user-" + UUID.randomUUID().toString().substring(0, 8);
-            }
+            // Generate userId automatically for privacy tracking
+            String userId = "user-" + UUID.randomUUID().toString().substring(0, 8);
             
             logger.info("Processing secure document classification for user: {}", userId);
             
