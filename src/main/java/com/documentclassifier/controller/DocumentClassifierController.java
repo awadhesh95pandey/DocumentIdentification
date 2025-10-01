@@ -204,10 +204,10 @@ public class DocumentClassifierController {
                     .body(Map.of("error", "Text parameter is required"));
             }
             
-            // Generate userId automatically for privacy tracking
+            // Generate userId automatically for internal privacy tracking
             String userId = "user-" + UUID.randomUUID().toString().substring(0, 8);
             
-            logger.info("Processing secure document classification for user: {}", userId);
+            logger.info("Processing secure document classification");
             
             // Check if VaultGemma is available
             if (!vaultGemmaIntegration.isVaultGemmaAvailable()) {
@@ -218,25 +218,25 @@ public class DocumentClassifierController {
             // Check privacy budget before processing using Google VaultGemma service
             if (!googleVaultGemmaService.hasPrivacyBudget(userId)) {
                 Map<String, Object> privacyStatus = googleVaultGemmaService.getPrivacyBudgetStatus(userId);
-                logger.warn("Privacy budget exceeded for user: {}", userId);
+                logger.warn("Privacy budget exceeded");
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(Map.of(
                         "error", "Privacy budget exceeded",
-                        "message", "You have exceeded your privacy budget. Please try again later or contact support.",
-                        "privacyBudgetStatus", privacyStatus
+                        "message", "You have exceeded your privacy budget. Please try again later or contact support."
                     ));
             }
             
             // Perform secure classification using Google VaultGemma-1b
             String classification = googleVaultGemmaService.classifyDocumentSecurely(text, userId);
             
-            // Get updated privacy budget status from Google VaultGemma service
+            // Get updated privacy budget status from Google VaultGemma service (but don't expose userId)
             Map<String, Object> updatedPrivacyStatus = googleVaultGemmaService.getPrivacyBudgetStatus(userId);
+            // Remove userId from privacy status for response
+            updatedPrivacyStatus.remove("userId");
             
             // Build response
             Map<String, Object> response = new HashMap<>();
             response.put("classification", classification);
-            response.put("userId", userId);
             response.put("timestamp", System.currentTimeMillis());
             response.put("vaultGemmaEnabled", vaultGemmaEnabled);
             response.put("privacyProtected", true);
@@ -252,11 +252,11 @@ public class DocumentClassifierController {
             Map<String, Object> googleVaultGemmaStatus = googleVaultGemmaService.getServiceStatus();
             response.put("googleVaultGemmaStatus", googleVaultGemmaStatus);
             
-            logger.info("Secure document classification completed: {} for user: {}", classification, userId);
+            logger.info("Secure document classification completed: {}", classification);
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            logger.error("Secure document classification failed for user {}: {}", userId, e.getMessage());
+            logger.error("Secure document classification failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of(
                     "error", "Secure classification failed",
